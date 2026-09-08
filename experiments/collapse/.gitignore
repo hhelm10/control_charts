@@ -1,0 +1,6 @@
+# regenerable artifacts
+*.log
+e0/configs/
+e0/synthetic_qa.parquet
+notes/*.aux
+notes/*.out
