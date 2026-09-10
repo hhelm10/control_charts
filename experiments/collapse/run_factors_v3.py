@@ -12,7 +12,8 @@ LN2 = float(np.log(2.0))
 BASE = dict(N=20, c_dec=LN2 / 20, theta_ret=0.5, sigma="unknown_first", B=5,  # agent
             M=50, lam_mean=0.003, lam_disp=0.0, s_env=0.0,                    # environment
             s_ask=0.0, mean_degree=None, peer="uniform",                      # communication
-            alpha=0.01, n_obs_frac=1.0)                                       # observation
+            alpha=0.01, n_obs_frac=1.0,                                       # observation
+            conflict=True)  # DB never deletes: contradictory retrievable copies -> abstain
 # Baseline matches v2's clocks: tau_eff = ln(1/theta_ret)/c_dec = 20 steps, so
 # R0 = m*tau/M = 4.95*20/50 ~ 2 on the full mesh, and the per-question observation
 # interval M/(alpha*B*N) = 50 > tau_eff. Without caution, evidence validity plays
@@ -26,8 +27,10 @@ FACTORS = {
     "communication": dict(x="s_ask", xs=[0.0, 0.5, 1.0, 1.5, 2.0, 3.0],
                           color="mean_degree", colors=[2, 6, None],
                           style="peer", styles=["uniform", "freshest"]),
+    # color = bandwidth at FIXED observation rate (alpha scaled so alpha*B = 0.05):
+    # can the network keep up with the world, and what is the binding constraint?
     "environment":   dict(x="lam_mean", xs=[0.0003, 0.001, 0.003, 0.01, 0.03, 0.1],
-                          color="lam_disp", colors=[0.0, 1.0, 2.0],
+                          color="B_env", colors=[2, 5, 10],
                           style="s_env", styles=[0.0, 1.0]),
     "observation":   dict(x="alpha", xs=[0.1, 0.03, 0.01, 0.003, 0.001],
                           color="B", colors=[2, 5, 10],
@@ -37,6 +40,8 @@ FACTORS = {
 
 def cell(kw):
     p = {k: v for k, v in kw.items() if k != "factor"}
+    if "B_env" in p:                      # bandwidth lever at fixed observation rate
+        b = p.pop("B_env"); p["B"] = b; p["alpha"] = 0.05 / b
     r = run(T=T, record_every=5, **p)
     last = slice(-40, None)
     return {"kw": kw, "factor": kw["factor"],

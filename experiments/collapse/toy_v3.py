@@ -36,9 +36,14 @@ def zipf(M, s, rng):
 def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, theta_ret=0.5,
         lam_mean=0.01, lam_disp=0.0,
         s_env=0.0, s_ask=0.0, sigma="unknown_first", peer="uniform", mean_degree=None,
-        n_obs_frac=1.0, merge="evidence", T=1000, seed=0, record_every=5):
+        n_obs_frac=1.0, merge="evidence", conflict=False, T=1000, seed=0, record_every=5):
     """c_dec: relevance decay rate; theta_ret: retrievability threshold.
-    Effective memory lifetime tau_eff = ln(1/theta_ret)/c_dec on the receipt clock."""
+    Effective memory lifetime tau_eff = ln(1/theta_ret)/c_dec on the receipt clock.
+    conflict: memory never deletes, so the previously held copy stays retrievable
+    until its own relevance decays; if it is still retrievable and disagrees with
+    the current copy, the retrieved context is contradictory and the agent
+    abstains (IDK). This is the one channel through which environment speed can
+    reach P(IDK): a faster world makes successive copies disagree more often."""
     rng = np.random.default_rng(seed)
     if lam_disp > 0:
         lam = lam_mean * np.exp(lam_disp * rng.standard_normal(M) - lam_disp ** 2 / 2)
@@ -52,6 +57,8 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, theta_ret=0.5,
     t_obs = np.full((N, M), NEG, dtype=np.int64)
     t_recv = np.full((N, M), NEG, dtype=np.int64)
     val = np.zeros((N, M), dtype=np.int64)
+    p_val = np.zeros((N, M), dtype=np.int64)          # previous (superseded) copy, for conflict
+    p_recv = np.full((N, M), NEG, dtype=np.int64)
     # seed: every question observed once at t=0 by a random agent
     seed_a = rng.integers(0, N, size=M)
     t_obs[seed_a, np.arange(M)] = 0; t_recv[seed_a, np.arange(M)] = 0
@@ -65,11 +72,18 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, theta_ret=0.5,
     nbrs = [np.flatnonzero(A[i]) for i in range(N)]
     n_obs = int(round(n_obs_frac * N))
 
-    out = {k: [] for k in ["t", "idk", "idk_demand", "correct", "stale", "dead_q"]}
+    def answerable(t):
+        ret = (t_recv > NEG) & ((t - t_recv) <= tau)  # current copy retrievable
+        if not conflict:
+            return ret
+        contra = (p_recv > NEG) & ((t - p_recv) <= tau) & (p_val != val)
+        return ret & ~contra                          # contradictory context -> abstain
+
+    out = {k: [] for k in ["t", "idk", "idk_demand", "correct", "stale", "dead_q", "conflicted"]}
     for t in range(1, T + 1):
         truth += rng.random(M) < lam
         r_age = t - t_recv
-        knows = (t_recv > NEG) & (r_age <= tau)       # start-of-step retrievability
+        knows = answerable(t)                         # start-of-step state
 
         # --- budget split ---
         k_obs = rng.binomial(B, alpha, size=N)
@@ -79,6 +93,8 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, theta_ret=0.5,
         # --- observations ---
         for i in np.flatnonzero(k_obs):
             qs = rng.choice(M, size=k_obs[i], p=p_env)
+            sh = qs[(t_obs[i, qs] < t) & (t_recv[i, qs] > NEG)]   # supersede: keep old copy as prev
+            p_val[i, sh] = val[i, sh]; p_recv[i, sh] = t_recv[i, sh]
             t_obs[i, qs] = t; t_recv[i, qs] = t; val[i, qs] = truth[qs]
 
         # --- asks (peer state frozen at start of step) ---
@@ -113,10 +129,12 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, theta_ret=0.5,
                 if knows[j, q] and (merge == "receipt" or t_obs[j, q] >= new_t[i, q]):
                     new_t[i, q] = t_obs[j, q]; new_v[i, q] = val[j, q]; new_r[i, q] = t
         upd = new_r > t_recv                          # observations this step already wrote t; keep them
+        sh = upd & (new_t > t_obs) & (t_recv > NEG)   # strictly newer evidence supersedes: keep old copy as prev
+        p_val[sh] = val[sh]; p_recv[sh] = t_recv[sh]
         t_obs[upd] = new_t[upd]; val[upd] = new_v[upd]; t_recv[upd] = new_r[upd]
 
         if t % record_every == 0:
-            knows = (t_recv > NEG) & ((t - t_recv) <= tau)
+            knows = answerable(t)
             corr = knows & (val == truth[None, :])
             out["t"].append(t)
             out["idk"].append(1 - knows.mean())
@@ -124,4 +142,7 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, theta_ret=0.5,
             out["correct"].append(corr.mean())
             out["stale"].append((knows & ~corr).mean())
             out["dead_q"].append(1 - knows.any(axis=0).mean())
-    return {k: np.asarray(v) for k, v in out.items()}
+            out["conflicted"].append(((t_recv > NEG) & ((t - t_recv) <= tau) & ~knows).mean())
+    res = {k: np.asarray(v) for k, v in out.items()}
+    res["_state"] = dict(t=T, t_recv=t_recv, p_recv=p_recv, t_obs=t_obs, tau=tau, c_dec=c_dec)
+    return res

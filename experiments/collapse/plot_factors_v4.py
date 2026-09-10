@@ -1,7 +1,7 @@
-"""Factor figures for toy v3 (memory decay instead of caution). Same layout and
-encoding as plot_factors_v2; the agent lever is the relevance decay rate c_dec.
-Main figures use merge="evidence" (the decided rule); a companion figure compares
-evidence vs receipt merge (staleness laundering)."""
+"""Factor figures for toy v4 (crowding retrieval). Layout and encoding as before;
+the agent lever is the relevance decay rate c_dec, which under crowding sets the
+similarity head start Delta = ln(1/chi)/c_dec of the exact match over
+cross-question entries in the finite context."""
 import json
 import numpy as np
 import matplotlib
@@ -11,10 +11,8 @@ from matplotlib.lines import Line2D
 from matplotlib.colors import to_rgb
 from collections import defaultdict
 
-D = json.load(open("factor_v3_results.json"))
-BASE, FACTORS = D["base"], D["factors"]
-RES = [r for r in D["results"] if r["kw"]["merge"] == "evidence"]
-RES_ALL = D["results"]
+D = json.load(open("factor_v4_results.json"))
+BASE, FACTORS, RES = D["base"], D["factors"], D["results"]
 ORDER = ["agent", "communication", "environment", "observation"]
 HUE = {"agent": "#2a78d6", "communication": "#1baf7a", "environment": "#eb6834", "observation": "#4a3aa7"}
 INK, MUTED = "#0b0b0b", "#8a8984"
@@ -24,13 +22,14 @@ LN2 = float(np.log(2.0))
 XLAB = {"c_dec": "Memory decay rate $c$  (relevance $\\langle q,k\\rangle\\,e^{-c\\cdot\\mathrm{age}}$)",
         "s_ask": "Demand concentration (Zipf exponent of $\\pi_{ask}$)",
         "lam_mean": "Environment speed $\\bar\\lambda$ (changes / question / step)",
-        "alpha": "Asks per observation, $(1-\\alpha)/\\alpha$"}
+        "alpha": "Observation share of budget $\\alpha$\n(below: steps between visits to a question, at baseline)"}
 LEVEL = {"N": lambda v: f"$N$ = {v}",
          "sigma": lambda v: {"unknown_first": "ask unknown-first", "oldest": "ask oldest-memory-first"}[v],
          "mean_degree": lambda v: "full mesh" if v is None else f"degree {v}",
          "peer": lambda v: {"uniform": "random peer", "freshest": "freshest-evidence peer"}[v],
-         "lam_disp": lambda v: {0.0: "all questions same speed", 1.0: "speeds spread ×e", 2.0: "speeds spread ×e²"}[v],
-         "B_env": lambda v: f"bandwidth $B$ = {v} (obs. rate fixed)",
+         "B_bw": lambda v: f"budget $B$ = {v} (obs. rate fixed)",
+         "M": lambda v: f"$M$ = {v} questions",
+         "k_ctx": lambda v: f"context size $k$ = {v}",
          "s_env": lambda v: "flat environment" if v == 0 else "skewed environment (Zipf 1)",
          "B": lambda v: f"budget $B$ = {v}",
          "n_obs_frac": lambda v: "all agents observe" if v == 1.0 else "half of agents observe"}
@@ -45,8 +44,6 @@ def shade(hex_, level):
 
 
 def xpos(xkey, x):
-    if xkey == "alpha":
-        return round((1.0 - x) / x)
     return x
 
 
@@ -70,11 +67,18 @@ def draw_row(axes, metric, ylabel, show_xlabel=True, show_title=True, row_label=
             ax.set_xscale("log")
             ax.set_xticks(xp_all)
             if xkey == "c_dec":
-                ax.set_xticklabels([f"{v:g}\n$\\tau$={LN2 / v:.0f}" for v in xp_all], fontsize=7)
+                ax.set_xticklabels([f"{v:g}\n$\\Delta$={LN2 / v:.0f}" for v in xp_all], fontsize=7)
+            elif xkey == "alpha":
+                # top: share of budget observing; bottom: per-question revisit interval M/(alpha*B*N) at baseline
+                ax.set_xticklabels([f"{v * 100:g}%\n{BASE['M'] / (v * BASE['B'] * BASE['N']):,.0f} steps"
+                                    for v in xp_all], fontsize=7)
             else:
                 ax.set_xticklabels([f"{v:g}" for v in xp_all])
             ax.xaxis.set_minor_locator(matplotlib.ticker.NullLocator())
-            ax.set_xlim(min(xp_all) / 1.6, max(xp_all) * 1.6)
+            if xkey == "alpha":     # scarcity increases to the right
+                ax.set_xlim(max(xp_all) * 1.6, min(xp_all) / 1.6)
+            else:
+                ax.set_xlim(min(xp_all) / 1.6, max(xp_all) * 1.6)
         else:
             ax.set_xticks([0, 1, 2, 3]); ax.set_xlim(-0.15, 3.15)
         ax.set_ylim(-0.03, 1.03)
@@ -88,9 +92,9 @@ def draw_row(axes, metric, ylabel, show_xlabel=True, show_title=True, row_label=
         ax.axvline(bx, color=MUTED, ls=":", lw=1.1)
         if i == 0 and show_title:
             ax.text(bx, -0.02, " baseline", color=MUTED, fontsize=7, va="bottom", ha="left")
-        if xkey == "c_dec":  # R0 = m*tau/M = 1 at c = ln(1/theta) * m / M
+        if xkey == "c_dec":  # R0 = 1 at Delta + k/r ~ M/m, i.e. c ~ ln(1/chi) * m / M (r large)
             m_bw = (1 - BASE["alpha"]) * BASE["B"]
-            thr = LN2 * m_bw / BASE["M"]
+            thr = np.log(1 / BASE["chi"]) * m_bw / BASE["M"]
             ax.axvline(thr, color=MUTED, ls="--", lw=0.9)
             if show_title:
                 ax.text(thr, 1.02, "$R_0$=1 ", color=MUTED, fontsize=7, va="top", ha="right")
@@ -113,14 +117,14 @@ def draw_row(axes, metric, ylabel, show_xlabel=True, show_title=True, row_label=
 def footer(fig):
     b = BASE
     fig.text(0.01, 0.005,
-             f"Other factors at baseline (dotted line): $N$={b['N']}, decay $c$={b['c_dec']:.4f} "
-             f"($\\tau_{{eff}}=\\ln(1/\\theta)/c$ = {LN2 / b['c_dec']:.0f} steps at threshold $\\theta$={b['theta_ret']}), ask unknown-first, budget $B$={b['B']} · "
-             f"full mesh, random peer, flat demand · $M$={b['M']}, $\\bar\\lambda$={b['lam_mean']}, flat environment · "
-             f"$\\alpha$={b['alpha']} ({(1-b['alpha'])/b['alpha']:.0f} asks per observation), all agents observe.\n"
-             f"Model v3: infinite memory, relevance $\\langle q,k\\rangle e^{{-c\\,\\mathrm{{age}}}}$ on the receipt clock, answer iff relevance $\\geq\\theta$; no caution. "
-             f"Conflict rule on: a superseded copy that is still retrievable and disagrees makes the agent abstain.\n"
-             f"Newest-evidence merge. Environment panel varies bandwidth at fixed observation rate ($\\alpha B$ = 0.05). "
-             f"Mean ± s.e. over 10 seeds, last 200 of 800 steps (toy v3).",
+             f"Other factors at baseline (dotted line): $N$={b['N']}, decay $c$={b['c_dec']:.4f}, cross-similarity $\\chi$={b['chi']} "
+             f"(head start $\\Delta=\\ln(1/\\chi)/c$ = {np.log(1/b['chi']) / b['c_dec']:.0f} steps), context $k$={b['k_ctx']}, staleness-aware asking, budget $B$={b['B']} · "
+             f"full mesh, random peer, flat demand · $M$={b['M']}, speeds log-normal($\\bar\\lambda$={b['lam_mean']}, $\\sigma_\\lambda$={b['lam_disp']:g}), flat environment · $\\alpha$={b['alpha']}, all agents observe.\n"
+             f"Model v4 (crowding): the database never deletes; every received answer inserts; question $q$ is answerable iff fewer than $k$ fresher "
+             f"insertions outrank its entry's decayed score in the fixed context.\n"
+             f"Forgetting is relative and activity-dependent ($\\tau_{{eff}} = \\Delta + k/r_{{ins}}$); no caution. Staleness-aware asking: known questions are "
+             f"re-verified with weight $(1-e^{{-\\lambda_q\\cdot\\mathrm{{evidence\\,age}}}})^2$, so a fast world drains the ask budget into re-verification.\n"
+             f"Communication panel varies budget at fixed observation rate ($\\alpha B$ = 0.05). Mean ± s.e. over 10 seeds, last 200 of 800 steps (toy v4).",
              ha="left", va="bottom", fontsize=7.5, color=MUTED)
 
 
@@ -129,7 +133,7 @@ def make_figure(metric, ylabel, fname, suptitle):
     draw_row(axes, metric, ylabel)
     fig.suptitle(suptitle, fontsize=11, x=0.01, ha="left", y=0.995)
     footer(fig)
-    fig.tight_layout(rect=(0, 0.07, 1, 0.97), w_pad=1.2)
+    fig.tight_layout(rect=(0, 0.08, 1, 0.97), w_pad=1.2)
     fig.savefig(fname, dpi=170); print("saved", fname)
 
 
@@ -138,55 +142,19 @@ def make_figure1(fname):
     draw_row(axes[0], "idk", "P(“I don’t know”)", show_xlabel=False, show_title=True, row_label="Agent level")
     draw_row(axes[1], "dead_q", "P(no agent can answer)", show_xlabel=True, show_title=False, row_label="System level",
              show_legend=False)
-    fig.suptitle("Epistemic collapse by factor (v3: memory decay, no caution). Top: an agent cannot answer. Bottom: no agent can answer.",
+    fig.suptitle("Epistemic collapse by factor (v4: crowding — forgetting is relative). Top: an agent cannot answer. Bottom: no agent can answer.",
                  fontsize=11.5, x=0.01, ha="left", y=0.995)
     footer(fig)
-    fig.tight_layout(rect=(0.01, 0.05, 1, 0.97), w_pad=1.2, h_pad=1.0)
-    fig.savefig(fname, dpi=170); print("saved", fname)
-
-
-def make_merge_figure(fname):
-    """Staleness laundering: evidence vs receipt merge across environment speed."""
-    fig, axes = plt.subplots(1, 3, figsize=(12.5, 3.9), sharex=True)
-    xs = FACTORS["environment"]["xs"]
-    for ax, metric, ttl in zip(axes, ["idk", "stale", "correct"],
-                               ["P(“I don’t know”)", "P(stale answer)", "P(correct answer)"]):
-        for mi, mg in enumerate(["evidence", "receipt"]):
-            d = defaultdict(list)
-            for r in RES_ALL:
-                if (r["factor"] == "environment" and r["kw"]["merge"] == mg
-                        and r["kw"].get("B_env") == 5 and r["kw"]["s_env"] == 0.0):
-                    d[r["kw"]["lam_mean"]].append(r[metric])
-            ys = [np.mean(d[x]) for x in xs]
-            se = [np.std(d[x]) / np.sqrt(len(d[x])) for x in xs]
-            col = HUE["environment"] if mi == 0 else shade(HUE["environment"], 2)
-            ax.errorbar(xs, ys, yerr=se, color=col, lw=1.7, ms=5, capsize=0, **STYLE[mi],
-                        markerfacecolor=col if mi == 0 else "white", markeredgecolor=col,
-                        label={"evidence": "newest evidence wins", "receipt": "newest receipt wins (repo)"}[mg])
-        ax.set_xscale("log"); ax.set_xticks(xs); ax.set_xticklabels([f"{v:g}" for v in xs])
-        ax.xaxis.set_minor_locator(matplotlib.ticker.NullLocator())
-        ax.set_ylim(-0.03, 1.03); ax.set_xlabel(XLAB["lam_mean"])
-        ax.set_title(ttl, loc="left")
-        ax.axvline(BASE["lam_mean"], color=MUTED, ls=":", lw=1.1)
-    axes[0].legend(loc="upper left")
-    fig.suptitle("Circulation launders staleness: the repo's newest-receipt merge trades wrongness for availability",
-                 fontsize=11, x=0.01, ha="left", y=0.99)
-    fig.text(0.01, 0.005,
-             "Toy v3 at baseline except $\\bar\\lambda$ (x-axis). Under newest-receipt merge an old circulating copy overwrites\n"
-             "newer evidence whenever it is re-received, so fresh observations spread no faster than stale lineages:\n"
-             "IDK falls slightly, staleness roughly doubles. Mean ± s.e. over 10 seeds, last 200 of 800 steps.",
-             ha="left", va="bottom", fontsize=7.5, color=MUTED)
-    fig.tight_layout(rect=(0, 0.08, 1, 0.94))
+    fig.tight_layout(rect=(0.01, 0.06, 1, 0.97), w_pad=1.2, h_pad=1.0)
     fig.savefig(fname, dpi=170); print("saved", fname)
 
 
 for r in RES:
     r["notcorrect"] = 1 - r["correct"]
-make_figure("idk", "P(“I don’t know”)", "fig_factors_v3_idk.png",
-            "Epistemic collapse by factor (v3): one intrinsic lever per factor.")
-make_figure("notcorrect", "P(not correct)  (IDK + stale)", "fig_factors_v3_notcorrect.png",
-            "Companion (v3): probability the answer is not correct (adds confidently stale answers).")
-make_figure("dead_q", "P(no agent can answer)", "fig_factors_v3_system.png",
-            "Companion (v3): system-level collapse (questions no agent can answer).")
-make_figure1("figure1_v3_collapse_by_factor.png")
-make_merge_figure("fig_v3_merge_laundering.png")
+make_figure("idk", "P(“I don’t know”)", "fig_factors_v4_idk.png",
+            "Epistemic collapse by factor (v4): one intrinsic lever per factor.")
+make_figure("notcorrect", "P(not correct)  (IDK + stale)", "fig_factors_v4_notcorrect.png",
+            "Companion (v4): probability the answer is not correct (adds confidently stale answers).")
+make_figure("dead_q", "P(no agent can answer)", "fig_factors_v4_system.png",
+            "Companion (v4): system-level collapse (questions no agent can answer).")
+make_figure1("figure1_v4_collapse_by_factor.png")
