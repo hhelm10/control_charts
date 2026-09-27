@@ -1,5 +1,6 @@
 """Modal embedding infrastructure - separate from CLI to avoid import issues."""
 
+from pathlib import Path
 import logging
 import numpy as np
 
@@ -63,7 +64,7 @@ except ImportError:
     MODAL_AVAILABLE = False
 
 
-ALPHABET_CACHE = "/home/ubuntu/helivan-chat-a100/projects/data/answer_alphabet.npz"
+ALPHABET_CACHE = str(Path(__file__).resolve().parents[2] / "projects" / "data" / "answer_alphabet.npz")
 _ALPHABET_LUT: dict | None = None
 
 

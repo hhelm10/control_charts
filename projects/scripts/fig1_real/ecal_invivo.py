@@ -25,7 +25,7 @@ from controlcharts.agent import _hedged_chat
 from controlcharts.temporal_questions import TEMPORAL_QUESTIONS
 
 DUMP_DIR = "/tmp/claude-1000/-home-ubuntu-helivan-chat-a100-projects-epistemic-collapse/bc7fbc71-88d8-4252-958c-93c08b0f83dc/scratchpad"
-PARQUET = "/home/ubuntu/helivan-chat-a100/projects/data/nq_embedded.parquet"
+PARQUET = str(Path(__file__).resolve().parents[2] / "data" / "nq_embedded.parquet")
 MODEL = "gpt-4o-mini"
 N_ABSENT, N_PRESENT = 200, 50
 IDK_PAT = ("i don't know", "i do not know", "i don’t know")

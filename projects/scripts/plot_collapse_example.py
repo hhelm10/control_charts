@@ -5,6 +5,7 @@ collapsing (c=1.0). Three panels: (a) agent trajectories in perspective space
 (each agent's mean probe-response embedding per snapshot, PCA to 2D over both
 runs; the "I don't know" point marked); (b) average accuracy over time;
 (c) average P(IDK) over time. Embeddings via the answer-alphabet lookup."""
+from pathlib import Path
 import glob
 import json
 import re
@@ -17,7 +18,7 @@ from matplotlib.lines import Line2D
 
 INK, MUTED = "#0b0b0b", "#8a8984"
 HEALTHY, COLLAPSED = "#2a78d6", "#c94f3d"
-ALPHABET = "/home/ubuntu/helivan-chat-a100/projects/data/answer_alphabet.npz"
+ALPHABET = str(Path(__file__).resolve().parents[1] / "data" / "answer_alphabet.npz")
 RUNS = {  # label -> (color, run dir glob)
     "healthy ($c$=0.05)": (HEALTHY, "experiments/results/f1v6-real-c0.05-s42_*"),
     "collapsing ($c$=1.0)": (COLLAPSED, "experiments/results/f1v6-real-c1.0-s42_*"),

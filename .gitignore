@@ -8,5 +8,5 @@ build/
 experiments/results/
 *.db
 .DS_Store
-data/
+/data/
 uv.lock

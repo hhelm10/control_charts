@@ -34,8 +34,9 @@ root** (e.g. `python projects/scripts/plot_books_costly.py`).
 - `ecal_invivo_results*.json` — in-vivo gate validation.
 - `configs_fig1v6/` (no-mimesis grid), `configs_fig1v7/` (mimesis grid) — the run configs
   behind Figures 1–2.
-- Large external inputs live outside the repo in `~/helivan-chat-a100/projects/data/`:
-  `nq_embedded.parquet` (question pool), `answer_alphabet.npz` (lookup embedding).
+- `nq_embedded.parquet` (question pool from Natural Questions) and `answer_alphabet.npz`
+  (the verbatim response alphabet with cached embeddings — the lookup table behind
+  the no-encoding embedding) — hosted here so the repo is self-contained.
 
 ## writing/
 

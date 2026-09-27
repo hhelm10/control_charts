@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).parents[3] / "src"))
 from controlcharts.config import DEFAULT_SYSTEM_PROMPT, DEFAULT_PROMPT_TEMPLATE
 from controlcharts.agent import _hedged_chat
 
-PARQUET = "/home/ubuntu/helivan-chat-a100/projects/data/nq_embedded.parquet"
+PARQUET = str(Path(__file__).resolve().parents[2] / "data" / "nq_embedded.parquet")
 MODEL = "gpt-4o-mini"
 N_Q = 40
 KS = (1, 3, 7)
