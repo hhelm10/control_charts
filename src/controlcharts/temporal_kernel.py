@@ -34,7 +34,7 @@ class TemporalKernelHook:
         question_embeddings: dict[str, np.ndarray],
         output_dir: Path,
         seed: int = 42,
-        max_workers: int = 50,
+        max_workers: int = 200,
         temporal_questions: list[str] = None,  # Temporal questions to always include
         temporal_values: dict[str, int] = None,  # Shared dict: question -> current value
     ):
@@ -53,6 +53,7 @@ class TemporalKernelHook:
 
         # Track metadata for all snapshots
         self.snapshots_metadata: list[dict] = []
+        self.truth_fn = None  # set post-construction: question -> current true answer
 
         # Store collected responses in memory (embedded at end)
         self.pending_snapshots: list[dict] = []
@@ -103,22 +104,22 @@ class TemporalKernelHook:
         Returns:
             List of shape [num_agents][num_questions] with response strings.
         """
+        import asyncio
+
+        pairs = [(ai, qi, agent, q) for ai, agent in enumerate(agents)
+                 for qi, q in enumerate(questions)]
+
+        async def _gather():
+            return await asyncio.gather(*[
+                agent.answer_async(q, self.question_embeddings[q])
+                for _, _, agent, q in pairs])
+
+        if getattr(self, "_aloop", None) is None:
+            self._aloop = asyncio.new_event_loop()
+        flat = self._aloop.run_until_complete(_gather())
         responses = [[None] * len(questions) for _ in agents]
-
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            # Submit all agent-question pairs
-            futures = {}
-            for agent_idx, agent in enumerate(agents):
-                for q_idx, question in enumerate(questions):
-                    embedding = self.question_embeddings[question]
-                    future = executor.submit(self._query_agent, agent, question, embedding)
-                    futures[future] = (agent_idx, q_idx)
-
-            # Collect results
-            for future in as_completed(futures):
-                agent_idx, q_idx = futures[future]
-                responses[agent_idx][q_idx] = future.result()
-
+        for (ai, qi, _, _), r in zip(pairs, flat):
+            responses[ai][qi] = r
         return responses
 
     def _embed_responses(self, responses: list[list[str]]) -> np.ndarray:
@@ -130,7 +131,7 @@ class TemporalKernelHook:
         Returns:
             Array of shape [num_agents, num_questions, embedding_dim]
         """
-        from .embedding import embed_remote
+        from .embedding import embed_texts
 
         # Flatten for batch embedding
         flat_responses = []
@@ -138,7 +139,7 @@ class TemporalKernelHook:
             flat_responses.extend(agent_responses)
 
         # Embed all responses at once
-        flat_embeddings = embed_remote(flat_responses)
+        flat_embeddings = embed_texts(flat_responses)
 
         # Reshape back to [agents, questions, dim]
         num_agents = len(responses)
@@ -181,6 +182,7 @@ class TemporalKernelHook:
             "shape": list(embeddings.shape),
             "temporal_mask": self.sampled_temporal_mask,  # Which questions are temporal
             "temporal_values": temporal_values_snapshot or {},  # Current values for each temporal question
+            "truths": ({q: self.truth_fn(q) for q in questions} if self.truth_fn else {}),
         }
 
         metadata_path = self.output_dir / f"snapshot_step_{step:04d}_meta.json"
@@ -243,8 +245,8 @@ class TemporalKernelHook:
         logger.info(f"Batch embedding {len(all_responses)} responses via Modal...")
 
         # Single Modal call for all responses
-        from .embedding import embed_remote
-        all_embeddings = embed_remote(all_responses)
+        from .embedding import embed_texts
+        all_embeddings = embed_texts(all_responses)
 
         logger.info(f"Batch embedding complete. Shape: {all_embeddings.shape}")
 

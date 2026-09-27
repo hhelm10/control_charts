@@ -1,0 +1,33 @@
+experiment:
+  name: fig1-deg6-s42
+  description: Figure 1 real-system spine grid
+data:
+  total_questions: 50
+  questions_per_agent: 4
+  n_temporal: 10
+  temporal_change_probability: 0.04
+agents:
+  count: 10
+  model: gpt-4o-mini
+  retrieval_k: 3
+  use_llm: true
+network:
+  topology: random
+  edge_probability: 0.6667
+simulation:
+  max_iterations: 1000
+  seed: 42
+  questions_per_turn: 5
+  forget_strategy:
+    strategy: decay
+    decay_coefficient: 0.05
+    decay_mode: multiplicative
+  temporal_kernel:
+    enabled: true
+    interval: 10
+    sample_size: 10
+    n_nontemporal_sample: 10
+control_bar:
+  burn_in: 100
+  window_size: 100
+  k: 2

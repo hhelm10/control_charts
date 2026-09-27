@@ -32,7 +32,11 @@ class Simulation:
     rng: np.random.Generator = field(default_factory=lambda: np.random.default_rng(42))
     iteration_hook: IterationHook = field(default=noop_hook)
     max_workers: int = 50
-    questions_per_turn: int = 1  # Number of questions each agent asks per turn
+    questions_per_turn: int = 1  # Number of questions each agent asks per turn (K)
+    env_queries_per_turn: int = 0  # Environment consultations per agent per turn (E); budget B = K + E
+    static_answers: dict | None = None  # question -> base true answer (the environment store)
+    question_lambdas: dict | None = None  # question -> per-step change probability (all-temporal mode)
+    revisions: dict = field(default_factory=dict)  # question -> current revision counter
 
     # Temporal question state (shared with agents)
     temporal_values: dict[str, int] = field(default_factory=dict)  # question -> current value
@@ -67,6 +71,16 @@ class Simulation:
 
         return results
 
+    def current_truth(self, q: str) -> str | None:
+        """The environment's current answer for q (revision-versioned in all-temporal mode)."""
+        if self.temporal_values and q in self.temporal_values:
+            return str(self.temporal_values[q])
+        if self.static_answers and q in self.static_answers:
+            base = self.static_answers[q]
+            rev = self.revisions.get(q, 0)
+            return base if rev == 0 else f"{base} [rev {rev}]"
+        return None
+
     def _run_step(self, step: int) -> dict:
         """Run a single simulation step with parallel queries."""
         # Update current iteration for all agents (needed for decay calculations)
@@ -81,7 +95,25 @@ class Simulation:
                 if self.rng.random() < self.temporal_change_probability:
                     self.temporal_values[question] += 1
 
+        # All-temporal mode: every question's truth revises at its own rate
+        if self.question_lambdas:
+            for q, lam in self.question_lambdas.items():
+                if self.rng.random() < lam:
+                    self.revisions[q] = self.revisions.get(q, 0) + 1
+
         # Phase 1: Each agent selects questions and peers to ask
+        # Phase 0: environment consultations (mechanical; the only source of truth)
+        if self.env_queries_per_turn > 0:
+            for agent in self.network.agents:
+                for _ in range(self.env_queries_per_turn):
+                    q = agent.select_question_to_ask(self.rng)
+                    if q is None:
+                        continue
+                    truth = self.current_truth(q)
+                    if truth is None:
+                        continue
+                    agent.observe(q, truth, self.question_embeddings[q])
+
         # Each agent can ask up to questions_per_turn questions
         queries = []
         for agent in self.network.agents:
@@ -101,28 +133,26 @@ class Simulation:
                     "question_embedding": self.question_embeddings[question]
                 })
 
-        # Phase 2: Execute all queries in parallel
-        query_results = []
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {
-                executor.submit(
-                    self._execute_query,
-                    q["responding_agent"],
-                    q["question"],
-                    q["question_embedding"]
-                ): q for q in queries
-            }
+        # Phase 2: Execute all queries in parallel (async, hedged against tail latency)
+        import asyncio
 
-            for future in as_completed(futures):
-                q = futures[future]
-                answer = future.result()
-                query_results.append(QueryResult(
-                    querying_agent_id=q["querying_agent"].id,
-                    responding_agent_id=q["responding_agent"].id,
-                    question=q["question"],
-                    question_embedding=q["question_embedding"],
-                    answer=answer
-                ))
+        async def _gather():
+            return await asyncio.gather(*[
+                q["responding_agent"].answer_async(q["question"], q["question_embedding"])
+                for q in queries])
+
+        if getattr(self, "_aloop", None) is None:
+            self._aloop = asyncio.new_event_loop()
+        answers = self._aloop.run_until_complete(_gather())
+        query_results = [
+            QueryResult(
+                querying_agent_id=q["querying_agent"].id,
+                responding_agent_id=q["responding_agent"].id,
+                question=q["question"],
+                question_embedding=q["question_embedding"],
+                answer=a
+            ) for q, a in zip(queries, answers)
+        ]
 
         # Phase 3: Process answers and update agent databases
         for result in query_results:
@@ -166,7 +196,10 @@ def create_simulation(
     iteration_hook: IterationHook | None = None,
     questions_per_turn: int = 1,
     temporal_values: dict[str, int] | None = None,
-    temporal_change_probability: float = 0.0
+    temporal_change_probability: float = 0.0,
+    env_queries_per_turn: int = 0,
+    static_answers: dict | None = None,
+    question_lambdas: dict | None = None,
 ) -> Simulation:
     """Create a simulation with the given configuration."""
     # Set questions in play for all agents
@@ -176,6 +209,9 @@ def create_simulation(
 
     return Simulation(
         network=network,
+        env_queries_per_turn=env_queries_per_turn,
+        static_answers=static_answers,
+        question_lambdas=question_lambdas,
         question_embeddings=question_embeddings,
         rng=np.random.default_rng(seed),
         iteration_hook=iteration_hook or noop_hook,

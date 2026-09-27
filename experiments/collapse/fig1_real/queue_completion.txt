@@ -1,0 +1,16 @@
+experiments/collapse/fig1_real/configs_fig1v7/f1v7-real-mesh-s42.yaml
+experiments/collapse/fig1_real/configs_fig1v7/f1v7-real-mesh-s43.yaml
+experiments/collapse/fig1_real/configs_fig1v7/f1v7-real-mesh-s44.yaml
+experiments/collapse/fig1_real/configs_fig1v7/f1v7-real-lam.001-s42.yaml
+experiments/collapse/fig1_real/configs_fig1v7/f1v7-real-lam.001-s43.yaml
+experiments/collapse/fig1_real/configs_fig1v7/f1v7-real-lam.001-s44.yaml
+experiments/collapse/fig1_real/configs_fig1v7/f1v7-real-lam.1-s42.yaml
+experiments/collapse/fig1_real/configs_fig1v7/f1v7-real-lam.1-s43.yaml
+experiments/collapse/fig1_real/configs_fig1v7/f1v7-real-lam.1-s44.yaml
+experiments/collapse/fig1_real/configs_fig1v6/f1v6-real-base-s42.yaml
+experiments/collapse/fig1_real/configs_fig1v6/f1v6-real-c1.0-s42.yaml
+experiments/collapse/fig1_real/configs_fig1v6/f1v6-real-c1.0-s43.yaml
+experiments/collapse/fig1_real/configs_fig1v6/f1v6-real-mesh-s43.yaml
+experiments/collapse/fig1_real/configs_fig1v6/f1v6-real-mesh-s44.yaml
+experiments/collapse/fig1_real/configs_fig1v7/f1v7-real-c1.0-s44.yaml
+experiments/collapse/fig1_real/configs_fig1v7/f1v7-real-deg2-s44.yaml

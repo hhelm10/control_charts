@@ -177,8 +177,8 @@ def run(
 
         # Embed temporal questions using Modal
         console.print(f"Embedding {n_temporal} temporal questions...")
-        from .embedding import embed_remote
-        temporal_embs = embed_remote(temporal_questions_in_play)
+        from .embedding import embed_texts
+        temporal_embs = embed_texts(temporal_questions_in_play)
 
         # Add temporal questions to questions_in_play and embeddings
         for i, tq in enumerate(temporal_questions_in_play):
@@ -253,6 +253,7 @@ def run(
             database=VectorDatabase(dimension=embedding_dim),
             model=config.agents.model,
             retrieval_k=config.agents.retrieval_k,
+            answer_policy=config.agents.answer_policy,
             system_prompt=DEFAULT_SYSTEM_PROMPT,
             prompt_template=DEFAULT_PROMPT_TEMPLATE,
             adversarial_schedule=adversarial_schedule,
@@ -283,10 +284,12 @@ def run(
         ]
         agent.initialize_knowledge(qa_pairs)
 
-        # Set temporal questions and ownership (pass shared temporal_values dict)
+        # Set temporal questions and ownership (pass shared temporal_values dict).
+        # With the environment-query channel on, ownership is disabled: no agent
+        # knows the truth without consulting the environment.
         agent.set_temporal_questions(
             temporal_questions_set,
-            temporal_ownership[i],
+            set() if config.simulation.env_queries_per_turn > 0 else temporal_ownership[i],
             temporal_values=temporal_values
         )
 
@@ -352,8 +355,21 @@ def run(
         iteration_hook=hook,
         questions_per_turn=config.simulation.questions_per_turn,
         temporal_values=temporal_values,
-        temporal_change_probability=config.data.temporal_change_probability
+        temporal_change_probability=config.data.temporal_change_probability,
+        env_queries_per_turn=config.simulation.env_queries_per_turn,
+        static_answers=dict(zip(questions_in_play, answers_in_play)),
+        question_lambdas=(
+            {q: float(config.data.lambda_mean *
+                      np.exp(config.data.lambda_disp * rng.standard_normal()
+                             - config.data.lambda_disp ** 2 / 2))
+             for q in questions_in_play}
+            if config.data.lambda_mean > 0 else None),
     )
+
+    # Give the snapshot hook access to the environment's current truth
+    for h in hooks:
+        if hasattr(h, "truth_fn"):
+            h.truth_fn = sim.current_truth
 
     # Run simulation
     console.print(f"\n[bold]Running simulation for {config.simulation.max_iterations} iterations...[/bold]\n")

@@ -14,6 +14,7 @@ class QAPair:
     id: int = -1
     insertion_time: int = 0  # Iteration when this pair was inserted
     is_temporal: bool = False  # Whether this is a temporal question (answer changes each iteration)
+    firsthand: bool = False  # True iff this entry came from the environment (seed / observation), not a peer
 
 
 @dataclass

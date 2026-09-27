@@ -1,0 +1,36 @@
+experiment:
+  name: f1v4-real-lam.03-s42
+  description: 'Figure 1 v4: no-mimesis, env store, B=11, all-temporal'
+data:
+  total_questions: 50
+  questions_per_agent: 5
+  n_temporal: 0
+  temporal_change_probability: 0.0
+  lambda_mean: 0.03
+  lambda_disp: 1.0
+agents:
+  count: 10
+  model: gpt-4o-mini
+  retrieval_k: 3
+  use_llm: true
+  answer_policy: firsthand
+network:
+  topology: full_mesh
+simulation:
+  max_iterations: 500
+  seed: 42
+  questions_per_turn: 10
+  env_queries_per_turn: 1
+  forget_strategy:
+    strategy: decay
+    decay_coefficient: 0.05
+    decay_mode: multiplicative
+  temporal_kernel:
+    enabled: true
+    interval: 10
+    sample_size: 10
+    n_nontemporal_sample: 20
+control_bar:
+  burn_in: 100
+  window_size: 100
+  k: 2

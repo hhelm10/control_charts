@@ -15,6 +15,8 @@ class DataConfig(BaseModel):
     total_questions: int = Field(default=500, description="Total QA pairs in play")
     questions_per_agent: int = Field(default=50, description="Initial knowledge per agent")
     n_temporal: int = Field(default=0, description="Number of temporal questions (0 to disable)")
+    lambda_mean: float = Field(default=0.0, description="Mean per-question change rate (all questions temporal; log-normal)")
+    lambda_disp: float = Field(default=1.0, description="Log-normal dispersion of per-question change rates")
     temporal_change_probability: float = Field(default=0.04, description="Probability each temporal question changes per step (1/25 = 0.04)")
 
 
@@ -45,6 +47,7 @@ class AgentsConfig(BaseModel):
     """Agent configuration."""
     count: int = Field(default=10, description="Number of agents")
     model: str = Field(default="gpt-4o-mini", description="OpenAI model for completions")
+    answer_policy: str = Field(default="open", description="open | firsthand (no mimesis)")
     retrieval_k: int = Field(default=5, description="Top-k retrieval")
     use_llm: bool = Field(default=True, description="Use LLM for answering; if False, use lightweight memory lookup")
     propagation_probability: float = Field(default=1.0, description="Probability quine wins for same-question match in top-k (noLLM only)")
@@ -87,7 +90,8 @@ class SimulationConfig(BaseModel):
     """Simulation parameters."""
     max_iterations: int = Field(default=100, description="Maximum simulation steps")
     seed: int = Field(default=42, description="Random seed for reproducibility")
-    questions_per_turn: int = Field(default=1, description="Questions each agent asks per turn")
+    questions_per_turn: int = Field(default=1, description="Questions each agent asks per turn (K)")
+    env_queries_per_turn: int = Field(default=0, description="Environment consultations per agent per turn (E); budget B = K + E")
     forget_strategy: ForgetStrategyConfig = Field(default_factory=ForgetStrategyConfig)
     temporal_kernel: TemporalKernelConfig = Field(default_factory=TemporalKernelConfig)
 

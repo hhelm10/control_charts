@@ -1,0 +1,36 @@
+agents:
+  answer_policy: firsthand
+  count: 10
+  model: gpt-4o-mini
+  retrieval_k: 3
+  use_llm: false
+control_bar:
+  burn_in: 100
+  k: 2
+  window_size: 100
+data:
+  lambda_disp: 1.0
+  lambda_mean: 0.001
+  n_temporal: 0
+  questions_per_agent: 5
+  temporal_change_probability: 0.0
+  total_questions: 50
+experiment:
+  description: 'Figure 1 v4: no-mimesis, env store, B=11, all-temporal'
+  name: scr2-lam.001-s45
+network:
+  topology: full_mesh
+simulation:
+  env_queries_per_turn: 1
+  forget_strategy:
+    decay_coefficient: 0.05
+    decay_mode: multiplicative
+    strategy: decay
+  max_iterations: 500
+  questions_per_turn: 10
+  seed: 45
+  temporal_kernel:
+    enabled: true
+    interval: 10
+    n_nontemporal_sample: 20
+    sample_size: 10

@@ -63,6 +63,30 @@ except ImportError:
     MODAL_AVAILABLE = False
 
 
+ALPHABET_CACHE = "/home/ubuntu/helivan-chat-a100/projects/data/answer_alphabet.npz"
+_ALPHABET_LUT: dict | None = None
+
+
+def embed_texts(texts: list[str], batch_size: int = 256) -> np.ndarray:
+    """Pure lookup against the precomputed answer-alphabet cache. Under the
+    verbatim-relay protocol every response is a cached answer, "I don't know",
+    a temporal integer, or the quine -- so no encoding happens at run time.
+    A miss means a non-verbatim string leaked into circulation: raise loudly."""
+    global _ALPHABET_LUT
+    if _ALPHABET_LUT is None:
+        import os
+        d = np.load(os.environ.get("ALPHABET_CACHE", ALPHABET_CACHE), allow_pickle=True)
+        _ALPHABET_LUT = {t: e for t, e in zip(d["texts"], d["embeddings"])}
+    import re
+    strip = lambda t: re.sub(r" \[rev \d+\]$", "", t)
+    try:
+        return np.stack([_ALPHABET_LUT[strip(t)] for t in texts])
+    except KeyError as e:
+        raise KeyError(
+            f"response string not in the verbatim alphabet (protocol violation?): {str(e.args[0])[:120]!r}"
+        ) from None
+
+
 def embed_remote(questions: list[str], batch_size: int = 256) -> np.ndarray:
     """Embed questions using Modal with GPU acceleration."""
     if not MODAL_AVAILABLE:

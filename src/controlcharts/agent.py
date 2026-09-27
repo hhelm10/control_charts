@@ -1,12 +1,91 @@
 """Agent implementation with RAG database and LLM backend."""
 
 from dataclasses import dataclass, field
+import asyncio
+import os
 import numpy as np
 import time
-from openai import OpenAI, RateLimitError, APIConnectionError
+from openai import OpenAI, AsyncOpenAI, RateLimitError, APIConnectionError
 
 from .config import DEFAULT_SYSTEM_PROMPT, DEFAULT_PROMPT_TEMPLATE
 from .database import VectorDatabase, QAPair
+
+# Tail taming for the per-step barrier: if a completion has not returned after
+# HEDGE_AFTER seconds, fire a duplicate request and take whichever finishes
+# first (deterministic at temperature 0, ~10% duplicate token cost).
+HEDGE_AFTER = float(os.environ.get("LLM_HEDGE_AFTER", "1.5"))
+
+# Measured answering gate for the surrogate (no-LLM) path: P(IDK | present, k, position),
+# estimated from the real agent (ecal_probe.py). Loaded from the path in ECAL_TABLE;
+# absent from the table or env -> the gate is the deterministic step function.
+_ECAL_GATE: dict[tuple[int, int], float] | None = None
+
+
+def _ecal_gate() -> dict[tuple[int, int], float]:
+    global _ECAL_GATE
+    if _ECAL_GATE is None:
+        _ECAL_GATE = {}
+        path = os.environ.get("ECAL_TABLE", "")
+        if path and os.path.exists(path):
+            import ast, json as _json
+            from collections import defaultdict
+            acc = defaultdict(lambda: [0.0, 0])
+            for key, cell in _json.load(open(path)).items():
+                tup = ast.literal_eval(key)
+                if tup[0] == "present":                  # (tag, k, position, level)
+                    a = acc[(tup[1], tup[2])]
+                    a[0] += cell["p_idk"] * cell["n"]; a[1] += cell["n"]
+            _ECAL_GATE = {kp: s / n for kp, (s, n) in acc.items() if n}
+    return _ECAL_GATE
+
+
+# One AsyncOpenAI client per event loop (httpx clients are loop-bound).
+_ASYNC_CLIENTS: dict[int, AsyncOpenAI] = {}
+
+
+def _get_async_client() -> AsyncOpenAI:
+    key = id(asyncio.get_running_loop())
+    if key not in _ASYNC_CLIENTS:
+        _ASYNC_CLIENTS[key] = AsyncOpenAI(timeout=30.0, max_retries=3)
+    return _ASYNC_CLIENTS[key]
+
+
+async def _hedged_chat(model: str, messages: list[dict], hedge_after: float | None = None) -> str:
+    """One completion with a hedged duplicate against the latency tail."""
+    client = _get_async_client()
+
+    async def one() -> str:
+        r = await client.chat.completions.create(
+            model=model, messages=messages, temperature=0.0, max_tokens=500)
+        return r.choices[0].message.content.strip()
+
+    tasks: set[asyncio.Task] = {asyncio.create_task(one())}
+    hedged = False
+    last_exc: BaseException | None = None
+    try:
+        while tasks:
+            done, pending = await asyncio.wait(
+                tasks, timeout=None if hedged else (hedge_after or HEDGE_AFTER),
+                return_when=asyncio.FIRST_COMPLETED)
+            for t in done:
+                if t.exception() is None:
+                    return t.result()
+                last_exc = t.exception()
+            tasks = set(pending)
+            if not hedged:
+                tasks.add(asyncio.create_task(one()))
+                hedged = True
+        # both attempts raised (e.g. sustained 429): unhedged retries with backoff
+        for attempt in range(5):
+            try:
+                return await one()
+            except (RateLimitError, APIConnectionError):
+                await asyncio.sleep(0.5 * (2 ** attempt))
+        return await one()
+    finally:
+        for t in tasks:
+            if not t.done():
+                t.cancel()
 
 
 @dataclass
@@ -35,6 +114,10 @@ class Agent:
     # RNG for probabilistic adversarial behavior (set by simulation)
     _rng: np.random.Generator | None = field(default=None, repr=False)
 
+    # Answering policy: "open" = any exact entry grounds; "firsthand" = no
+    # mimesis -- only environment-derived entries (seeds, observations) ground
+    answer_policy: str = "open"
+
     # Forget strategy configuration
     forget_strategy: str = "none"  # "none" or "decay"
     decay_coefficient: float = 0.1  # Exponential decay rate
@@ -61,7 +144,7 @@ class Agent:
     @property
     def client(self) -> OpenAI:
         if self._client is None:
-            self._client = OpenAI()
+            self._client = OpenAI(timeout=30.0, max_retries=3)
         return self._client
 
     @property
@@ -71,6 +154,8 @@ class Agent:
 
     def initialize_knowledge(self, qa_pairs: list[QAPair]) -> None:
         """Initialize agent with a set of QA pairs, marking them as known."""
+        for qa in qa_pairs:
+            qa.firsthand = True                      # the initial endowment is environment-given
         self.database.add_many(qa_pairs)
         for qa in qa_pairs:
             self.known_questions.add(qa.question)
@@ -196,21 +281,17 @@ class Agent:
         else:
             raise ValueError(f"Unknown forget strategy: {self.forget_strategy}")
 
-    def answer(self, question: str, question_embedding: np.ndarray) -> str:
-        """Answer a question using RAG retrieval and LLM.
+    def prepare_answer(self, question: str, question_embedding: np.ndarray) -> tuple:
+        """Resolve a question up to (but not including) the LLM call.
 
-        For temporal questions that this agent owns, returns the current
-        value from the shared temporal_values dict (agent always knows
-        the correct answer for their assigned temporal questions).
-
-        If adversarial_schedule is set, probabilistically switches between
-        normal behavior (using database knowledge) and adversarial behavior
-        (using adversarial prompts).
+        Returns ("final", text) when no LLM call is needed (owned temporal,
+        no-LLM mode, adversarial template), else ("llm", system_prompt,
+        user_prompt) for the caller to execute synchronously or async.
         """
         # Check if this is a temporal question we own - return current value directly
         if question in self.owned_temporal_questions:
             temporal_value = self.temporal_values.get(question, 0)
-            return str(temporal_value)
+            return ("final", str(temporal_value))
 
         # Lightweight path: skip LLM, use top-3 memory lookup
         if not self.use_llm:
@@ -221,7 +302,7 @@ class Agent:
                 use_adversarial = self._rng.random() < adv_prob
 
             if use_adversarial:
-                return "I lost the game"
+                return ("final", "I lost the game")
 
             if self.forget_strategy == "decay":
                 retrieved = self.database.search(
@@ -242,13 +323,27 @@ class Agent:
                     else:
                         p = self.cross_question_propagation
                     if self._rng is None or self._rng.random() < p:
-                        return qa.answer
+                        return ("final", qa.answer)
                     break
-            # Otherwise return the top exact question match
-            for qa in retrieved:
-                if qa.question == question:
-                    return qa.answer
-            return "I don't know"
+            # Optional state dump for in-vivo E-cal: record the actual retrieved
+            # context for every answering event (ECAL_DUMP=path.jsonl)
+            dump = os.environ.get("ECAL_DUMP")
+            if dump:
+                with open(dump, "a") as fh:
+                    fh.write(__import__("json").dumps({
+                        "t": self.current_iteration, "agent": self.id, "q": question,
+                        "ctx": [(qa.question, qa.answer) for qa in retrieved],
+                        "present": any(qa.question == question for qa in retrieved)}) + "\n")
+            # Otherwise return the top exact question match, gated by the measured
+            # P(IDK | present, k, position) when an ecal table is provided
+            gate = _ecal_gate()
+            for pos, qa in enumerate(retrieved, start=1):
+                if qa.question == question and (self.answer_policy != "firsthand" or qa.firsthand):
+                    p_idk = gate.get((len(retrieved), pos), 0.0)
+                    if p_idk > 0 and self._rng is not None and self._rng.random() < p_idk:
+                        return ("final", "I don't know")
+                    return ("final", qa.answer)
+            return ("final", "I don't know")
 
         # Determine if we should behave adversarially this turn
         use_adversarial = False
@@ -258,7 +353,7 @@ class Agent:
 
         # If adversarial, return the prompt template directly (no LLM call)
         if use_adversarial and self.adversarial_prompt_template is not None:
-            return self.adversarial_prompt_template
+            return ("final", self.adversarial_prompt_template)
 
         # Normal behavior: use default prompts
         active_system_prompt = self.system_prompt
@@ -272,7 +367,8 @@ class Agent:
                 question_embedding,
                 k=self.retrieval_k,
                 current_iteration=self.current_iteration,
-                decay_coefficient=self.decay_coefficient
+                decay_coefficient=self.decay_coefficient,
+                decay_mode=self.decay_mode
             )
         else:
             retrieved = self.database.search(question_embedding, k=self.retrieval_k)
@@ -292,32 +388,61 @@ class Agent:
             question=question
         )
 
-        # Call LLM with active prompts (retry on rate limit)
+        # Verbatim relay: if the LLM answers (non-IDK), the message passed on is
+        # the stored exact-match entry itself, never the generation -- answers
+        # descend verbatim from the environment, eliminating paraphrase drift.
+        exact = next((qa.answer for qa in retrieved
+                      if qa.question == question
+                      and (self.answer_policy != "firsthand" or qa.firsthand)), None)
+        return ("llm", active_system_prompt, user_prompt, exact)
+
+    @staticmethod
+    def _relay(response: str, exact: str | None) -> str:
+        """The LLM is the gate; the stored entry is the payload."""
+        low = response.lower()
+        if "i don't know" in low or "i do not know" in low or "i don’t know" in low:
+            return "I don't know"
+        return exact if exact is not None else "I don't know"
+
+    def answer(self, question: str, question_embedding: np.ndarray) -> str:
+        """Answer a question (synchronous path; see prepare_answer)."""
+        res = self.prepare_answer(question, question_embedding)
+        if res[0] == "final":
+            return res[1]
+        _, system_prompt, user_prompt, exact = res
+        messages = [{"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}]
         for attempt in range(5):
             try:
                 response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": active_system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    temperature=0.0,
-                    max_tokens=500
-                )
-                return response.choices[0].message.content.strip()
+                    model=self.model, messages=messages, temperature=0.0, max_tokens=500)
+                return self._relay(response.choices[0].message.content.strip(), exact)
             except (RateLimitError, APIConnectionError):
                 time.sleep(0.5 * (2 ** attempt))
-        # Final attempt without catch
         response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": active_system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.0,
-            max_tokens=500
-        )
-        return response.choices[0].message.content.strip()
+            model=self.model, messages=messages, temperature=0.0, max_tokens=500)
+        return self._relay(response.choices[0].message.content.strip(), exact)
+
+    async def answer_async(self, question: str, question_embedding: np.ndarray) -> str:
+        """Answer a question (async path with a hedged request against tail latency)."""
+        res = self.prepare_answer(question, question_embedding)
+        if res[0] == "final":
+            return res[1]
+        _, system_prompt, user_prompt, exact = res
+        r = await _hedged_chat(self.model,
+                               [{"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_prompt}])
+        return self._relay(r, exact)
+
+    def observe(self, question: str, true_answer: str, question_embedding: np.ndarray) -> None:
+        """Consult the environment: insert the TRUE current answer as a
+        firsthand entry (the only way truth enters an agent)."""
+        self.database.add(QAPair(
+            question=question, answer=true_answer, embedding=question_embedding,
+            insertion_time=self.current_iteration,
+            is_temporal=question in self.temporal_questions, firsthand=True))
+        self.mark_known(question)
+        self.question_learn_time[question] = self.current_iteration
 
     def receive_answer(self, question: str, answer: str, question_embedding: np.ndarray) -> bool:
         """Receive an answer from a peer. Returns True if knowledge was added."""
@@ -334,7 +459,8 @@ class Agent:
             answer=answer,
             embedding=question_embedding,
             insertion_time=self.current_iteration,  # Track when inserted for decay
-            is_temporal=is_temporal
+            is_temporal=is_temporal,
+            firsthand=False                          # hearsay never grounds under firsthand policy
         )
         self.database.add(qa_pair)
         self.mark_known(question)

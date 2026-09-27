@@ -1,0 +1,32 @@
+agents:
+  count: 10
+  model: gpt-4o-mini
+  retrieval_k: 3
+  use_llm: true
+control_bar:
+  burn_in: 100
+  k: 2
+  window_size: 100
+data:
+  n_temporal: 10
+  questions_per_agent: 4
+  temporal_change_probability: 0.04
+  total_questions: 50
+experiment:
+  description: Figure 1 real-system spine grid
+  name: h2h-real-baseline-s44
+network:
+  topology: full_mesh
+simulation:
+  forget_strategy:
+    decay_coefficient: 0.05
+    decay_mode: multiplicative
+    strategy: decay
+  max_iterations: 500
+  questions_per_turn: 5
+  seed: 44
+  temporal_kernel:
+    enabled: true
+    interval: 10
+    n_nontemporal_sample: 10
+    sample_size: 10

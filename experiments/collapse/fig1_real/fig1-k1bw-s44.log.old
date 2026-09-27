@@ -1,0 +1,470 @@
+/home/ubuntu/.local/lib/python3.10/site-packages/matplotlib/projections/__init__.py:63: UserWarning: Unable to import Axes3D. This may be due to multiple versions of Matplotlib being installed (e.g. as a system package and as a pip package). As a result, the 3D projection is not available.
+  warnings.warn("Unable to import Axes3D. This may be due to multiple versions of "
+
+Control Charts Experiment: fig1-k1bw-s44
+Description: Figure 1 real-system spine grid
+Run directory: experiments/results/fig1-k1bw-s44_2026-09-15_23-34-13
+
+✓ Loaded 3000 embedded QA pairs
+✓ Selected 40 non-temporal questions in play
+Embedding 10 temporal questions...
+2026-09-15 23:34:14,047 - INFO - Setting up Modal for remote embedding...
+2026-09-15 23:34:14,049 - INFO - Processing 10 questions in 1 chunks
+2026-09-15 23:34:15,338 - INFO - Submitting chunk 1/1 (10 questions)
+2026-09-15 23:34:15,506 - INFO - Waiting for chunk 1/1...
+2026-09-15 23:34:44,601 - INFO - Chunk 1/1 completed
+2026-09-15 23:34:44,825 - INFO - Remote embedding completed. Shape: (10, 768)
+✓ Added 10 temporal questions (total: 50 questions)
+✓ Created 10 agents with ~4 non-temporal QA pairs each
+✓ Distributed 10 temporal questions across agents (each agent owns ~1 temporal 
+questions)
+✓ Created full_mesh network topology
+2026-09-15 23:34:44,868 - INFO - Temporal kernel: 10 temporal + 10 non-temporal = 20 total questions (equal sampling)
+✓ Temporal kernel hook enabled (interval=10, all 10 temporal + 10 non-temporal 
+questions)
+
+Running simulation for 1000 iterations...
+
+2026-09-15 23:34:46,130 - INFO - Temporal kernel hook firing at step 0
+2026-09-15 23:34:46,130 - INFO - Querying 20 sampled questions
+2026-09-15 23:34:46,130 - INFO - Querying 10 agents...
+2026-09-15 23:34:51,064 - INFO - Stored snapshot for step 0 (will embed at end)
+2026-09-15 23:35:01,497 - INFO - Temporal kernel hook firing at step 10
+2026-09-15 23:35:01,497 - INFO - Querying 20 sampled questions
+2026-09-15 23:35:01,497 - INFO - Querying 10 agents...
+2026-09-15 23:35:03,762 - INFO - Stored snapshot for step 10 (will embed at end)
+2026-09-15 23:35:15,009 - INFO - Temporal kernel hook firing at step 20
+2026-09-15 23:35:15,009 - INFO - Querying 20 sampled questions
+2026-09-15 23:35:15,009 - INFO - Querying 10 agents...
+2026-09-15 23:35:17,292 - INFO - Stored snapshot for step 20 (will embed at end)
+2026-09-15 23:35:35,066 - INFO - Temporal kernel hook firing at step 30
+2026-09-15 23:35:35,066 - INFO - Querying 20 sampled questions
+2026-09-15 23:35:35,066 - INFO - Querying 10 agents...
+2026-09-15 23:35:37,847 - INFO - Stored snapshot for step 30 (will embed at end)
+2026-09-15 23:35:50,906 - INFO - Temporal kernel hook firing at step 40
+2026-09-15 23:35:50,906 - INFO - Querying 20 sampled questions
+2026-09-15 23:35:50,906 - INFO - Querying 10 agents...
+2026-09-15 23:35:53,429 - INFO - Stored snapshot for step 40 (will embed at end)
+2026-09-15 23:36:02,920 - INFO - Temporal kernel hook firing at step 50
+2026-09-15 23:36:02,920 - INFO - Querying 20 sampled questions
+2026-09-15 23:36:02,920 - INFO - Querying 10 agents...
+2026-09-15 23:36:05,368 - INFO - Stored snapshot for step 50 (will embed at end)
+2026-09-15 23:36:15,825 - INFO - Temporal kernel hook firing at step 60
+2026-09-15 23:36:15,825 - INFO - Querying 20 sampled questions
+2026-09-15 23:36:15,825 - INFO - Querying 10 agents...
+2026-09-15 23:36:18,027 - INFO - Stored snapshot for step 60 (will embed at end)
+2026-09-15 23:36:27,899 - INFO - Temporal kernel hook firing at step 70
+2026-09-15 23:36:27,899 - INFO - Querying 20 sampled questions
+2026-09-15 23:36:27,900 - INFO - Querying 10 agents...
+2026-09-15 23:36:29,831 - INFO - Stored snapshot for step 70 (will embed at end)
+2026-09-15 23:36:39,334 - INFO - Temporal kernel hook firing at step 80
+2026-09-15 23:36:39,334 - INFO - Querying 20 sampled questions
+2026-09-15 23:36:39,334 - INFO - Querying 10 agents...
+2026-09-15 23:36:41,379 - INFO - Stored snapshot for step 80 (will embed at end)
+2026-09-15 23:36:50,820 - INFO - Temporal kernel hook firing at step 90
+2026-09-15 23:36:50,820 - INFO - Querying 20 sampled questions
+2026-09-15 23:36:50,820 - INFO - Querying 10 agents...
+2026-09-15 23:36:52,896 - INFO - Stored snapshot for step 90 (will embed at end)
+2026-09-15 23:37:03,797 - INFO - Temporal kernel hook firing at step 100
+2026-09-15 23:37:03,797 - INFO - Querying 20 sampled questions
+2026-09-15 23:37:03,797 - INFO - Querying 10 agents...
+2026-09-15 23:37:06,173 - INFO - Stored snapshot for step 100 (will embed at end)
+2026-09-15 23:37:15,983 - INFO - Temporal kernel hook firing at step 110
+2026-09-15 23:37:15,984 - INFO - Querying 20 sampled questions
+2026-09-15 23:37:15,984 - INFO - Querying 10 agents...
+2026-09-15 23:37:27,255 - INFO - Stored snapshot for step 110 (will embed at end)
+2026-09-15 23:37:53,697 - INFO - Temporal kernel hook firing at step 120
+2026-09-15 23:37:53,698 - INFO - Querying 20 sampled questions
+2026-09-15 23:37:53,698 - INFO - Querying 10 agents...
+2026-09-15 23:37:58,910 - INFO - Stored snapshot for step 120 (will embed at end)
+2026-09-15 23:38:18,084 - INFO - Temporal kernel hook firing at step 130
+2026-09-15 23:38:18,086 - INFO - Querying 20 sampled questions
+2026-09-15 23:38:18,086 - INFO - Querying 10 agents...
+2026-09-15 23:38:22,969 - INFO - Stored snapshot for step 130 (will embed at end)
+2026-09-15 23:38:36,271 - INFO - Temporal kernel hook firing at step 140
+2026-09-15 23:38:36,272 - INFO - Querying 20 sampled questions
+2026-09-15 23:38:36,272 - INFO - Querying 10 agents...
+2026-09-15 23:38:38,748 - INFO - Stored snapshot for step 140 (will embed at end)
+2026-09-15 23:38:52,150 - INFO - Temporal kernel hook firing at step 150
+2026-09-15 23:38:52,151 - INFO - Querying 20 sampled questions
+2026-09-15 23:38:52,151 - INFO - Querying 10 agents...
+2026-09-15 23:38:55,661 - INFO - Stored snapshot for step 150 (will embed at end)
+2026-09-15 23:39:19,901 - INFO - Temporal kernel hook firing at step 160
+2026-09-15 23:39:19,901 - INFO - Querying 20 sampled questions
+2026-09-15 23:39:19,901 - INFO - Querying 10 agents...
+2026-09-15 23:39:25,297 - INFO - Stored snapshot for step 160 (will embed at end)
+2026-09-15 23:39:42,182 - INFO - Temporal kernel hook firing at step 170
+2026-09-15 23:39:42,183 - INFO - Querying 20 sampled questions
+2026-09-15 23:39:42,183 - INFO - Querying 10 agents...
+2026-09-15 23:39:47,117 - INFO - Stored snapshot for step 170 (will embed at end)
+2026-09-15 23:40:08,624 - INFO - Temporal kernel hook firing at step 180
+2026-09-15 23:40:08,624 - INFO - Querying 20 sampled questions
+2026-09-15 23:40:08,624 - INFO - Querying 10 agents...
+2026-09-15 23:40:12,687 - INFO - Stored snapshot for step 180 (will embed at end)
+2026-09-15 23:40:26,960 - INFO - Temporal kernel hook firing at step 190
+2026-09-15 23:40:26,961 - INFO - Querying 20 sampled questions
+2026-09-15 23:40:26,961 - INFO - Querying 10 agents...
+2026-09-15 23:40:38,310 - INFO - Stored snapshot for step 190 (will embed at end)
+2026-09-15 23:40:51,030 - INFO - Temporal kernel hook firing at step 200
+2026-09-15 23:40:51,031 - INFO - Querying 20 sampled questions
+2026-09-15 23:40:51,032 - INFO - Querying 10 agents...
+2026-09-15 23:40:55,015 - INFO - Stored snapshot for step 200 (will embed at end)
+2026-09-15 23:41:30,213 - INFO - Temporal kernel hook firing at step 210
+2026-09-15 23:41:30,213 - INFO - Querying 20 sampled questions
+2026-09-15 23:41:30,213 - INFO - Querying 10 agents...
+2026-09-15 23:41:35,622 - INFO - Stored snapshot for step 210 (will embed at end)
+2026-09-15 23:41:49,243 - INFO - Temporal kernel hook firing at step 220
+2026-09-15 23:41:49,244 - INFO - Querying 20 sampled questions
+2026-09-15 23:41:49,244 - INFO - Querying 10 agents...
+2026-09-15 23:41:57,301 - INFO - Stored snapshot for step 220 (will embed at end)
+2026-09-15 23:42:12,338 - INFO - Temporal kernel hook firing at step 230
+2026-09-15 23:42:12,340 - INFO - Querying 20 sampled questions
+2026-09-15 23:42:12,340 - INFO - Querying 10 agents...
+2026-09-15 23:42:16,246 - INFO - Stored snapshot for step 230 (will embed at end)
+2026-09-15 23:42:29,666 - INFO - Temporal kernel hook firing at step 240
+2026-09-15 23:42:29,666 - INFO - Querying 20 sampled questions
+2026-09-15 23:42:29,666 - INFO - Querying 10 agents...
+2026-09-15 23:42:32,407 - INFO - Stored snapshot for step 240 (will embed at end)
+2026-09-15 23:42:51,569 - INFO - Progress: 25% (250/1000 iterations) - Knowledge: 243/500
+2026-09-15 23:42:52,727 - INFO - Temporal kernel hook firing at step 250
+2026-09-15 23:42:52,727 - INFO - Querying 20 sampled questions
+2026-09-15 23:42:52,727 - INFO - Querying 10 agents...
+2026-09-15 23:42:55,940 - INFO - Stored snapshot for step 250 (will embed at end)
+2026-09-15 23:43:21,577 - INFO - Temporal kernel hook firing at step 260
+2026-09-15 23:43:21,578 - INFO - Querying 20 sampled questions
+2026-09-15 23:43:21,578 - INFO - Querying 10 agents...
+2026-09-15 23:43:26,479 - INFO - Stored snapshot for step 260 (will embed at end)
+2026-09-15 23:43:39,456 - INFO - Temporal kernel hook firing at step 270
+2026-09-15 23:43:39,456 - INFO - Querying 20 sampled questions
+2026-09-15 23:43:39,456 - INFO - Querying 10 agents...
+2026-09-15 23:43:42,090 - INFO - Stored snapshot for step 270 (will embed at end)
+2026-09-15 23:43:56,457 - INFO - Temporal kernel hook firing at step 280
+2026-09-15 23:43:56,457 - INFO - Querying 20 sampled questions
+2026-09-15 23:43:56,457 - INFO - Querying 10 agents...
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/usr/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/home/ubuntu/helivan-chat-a100/projects/epistemic-collapse/src/controlcharts/__main__.py", line 6, in <module>
+    main()
+  File "/home/ubuntu/.local/lib/python3.10/site-packages/click/core.py", line 1442, in __call__
+    return self.main(*args, **kwargs)
+  File "/home/ubuntu/.local/lib/python3.10/site-packages/click/core.py", line 1363, in main
+    rv = self.invoke(ctx)
+  File "/home/ubuntu/.local/lib/python3.10/site-packages/click/core.py", line 1830, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+  File "/home/ubuntu/.local/lib/python3.10/site-packages/click/core.py", line 1226, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "/home/ubuntu/.local/lib/python3.10/site-packages/click/core.py", line 794, in invoke
+    return callback(*args, **kwargs)
+  File "/home/ubuntu/helivan-chat-a100/projects/epistemic-collapse/src/controlcharts/cli.py", line 362, in run
+    results = sim.run(max_iterations=config.simulation.max_iterations)
+  File "/home/ubuntu/helivan-chat-a100/projects/epistemic-collapse/src/controlcharts/simulation.py", line 57, in run
+    self.iteration_hook(step, self.network.agents, self.network)
+  File "/home/ubuntu/helivan-chat-a100/projects/epistemic-collapse/src/controlcharts/hooks.py", line 51, in __call__
+    hook(step, agents, network)
+  File "/home/ubuntu/helivan-chat-a100/projects/epistemic-collapse/src/controlcharts/temporal_kernel.py", line 213, in __call__
+    responses = self._collect_responses(agents, questions)
+  File "/home/ubuntu/helivan-chat-a100/projects/epistemic-collapse/src/controlcharts/temporal_kernel.py", line 120, in _collect_responses
+    for (ai, qi, _, _), r in zip(pairs, flat):
+  File "/usr/lib/python3.10/concurrent/futures/_base.py", line 451, in result
+    return self.__get_result()
+  File "/usr/lib/python3.10/concurrent/futures/_base.py", line 403, in __get_result
+    raise self._exception
+  File "/usr/lib/python3.10/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/ubuntu/helivan-chat-a100/projects/epistemic-collapse/src/controlcharts/temporal_kernel.py", line 94, in _query_agent
+    return agent.answer(question, question_embedding)
+  File "/home/ubuntu/helivan-chat-a100/projects/epistemic-collapse/src/controlcharts/agent.py", line 312, in answer
+    return ("final", self.adversarial_prompt_template)
+  File "/home/ubuntu/.local/lib/python3.10/site-packages/openai/_utils/_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "/home/ubuntu/.local/lib/python3.10/site-packages/openai/resources/chat/completions/completions.py", line 1211, in create
+    return self._post(
+  File "/home/ubuntu/.local/lib/python3.10/site-packages/openai/_base_client.py", line 1314, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+  File "/home/ubuntu/.local/lib/python3.10/site-packages/openai/_base_client.py", line 1087, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for gpt-4o-mini in organization org-FZLE5zDmKiqMsZd4vz1aA83o on requests per min (RPM): Limit 30000, Used 30000, Requested 1. Please try again in 2ms. Visit https://platform.openai.com/account/rate-limits to learn more.', 'type': 'requests', 'param': None, 'code': 'rate_limit_exceeded'}}
+Step 0: known=50, unknown=450
+Step 1: known=53, unknown=447
+Step 2: known=53, unknown=447
+Step 3: known=56, unknown=444
+Step 4: known=59, unknown=441
+Step 5: known=60, unknown=440
+Step 6: known=60, unknown=440
+Step 7: known=61, unknown=439
+Step 8: known=61, unknown=439
+Step 9: known=62, unknown=438
+Step 10: known=62, unknown=438
+Step 11: known=63, unknown=437
+Step 12: known=64, unknown=436
+Step 13: known=65, unknown=435
+Step 14: known=66, unknown=434
+Step 15: known=67, unknown=433
+Step 16: known=68, unknown=432
+Step 17: known=69, unknown=431
+Step 18: known=70, unknown=430
+Step 19: known=70, unknown=430
+Step 20: known=72, unknown=428
+Step 21: known=73, unknown=427
+Step 22: known=73, unknown=427
+Step 23: known=77, unknown=423
+Step 24: known=78, unknown=422
+Step 25: known=79, unknown=421
+Step 26: known=79, unknown=421
+Step 27: known=80, unknown=420
+Step 28: known=81, unknown=419
+Step 29: known=81, unknown=419
+Step 30: known=83, unknown=417
+Step 31: known=84, unknown=416
+Step 32: known=88, unknown=412
+Step 33: known=88, unknown=412
+Step 34: known=90, unknown=410
+Step 35: known=91, unknown=409
+Step 36: known=92, unknown=408
+Step 37: known=94, unknown=406
+Step 38: known=95, unknown=405
+Step 39: known=96, unknown=404
+Step 40: known=98, unknown=402
+Step 41: known=100, unknown=400
+Step 42: known=100, unknown=400
+Step 43: known=100, unknown=400
+Step 44: known=101, unknown=399
+Step 45: known=105, unknown=395
+Step 46: known=108, unknown=392
+Step 47: known=110, unknown=390
+Step 48: known=112, unknown=388
+Step 49: known=115, unknown=385
+Step 50: known=117, unknown=383
+Step 51: known=119, unknown=381
+Step 52: known=121, unknown=379
+Step 53: known=121, unknown=379
+Step 54: known=122, unknown=378
+Step 55: known=123, unknown=377
+Step 56: known=126, unknown=374
+Step 57: known=128, unknown=372
+Step 58: known=129, unknown=371
+Step 59: known=131, unknown=369
+Step 60: known=132, unknown=368
+Step 61: known=132, unknown=368
+Step 62: known=132, unknown=368
+Step 63: known=133, unknown=367
+Step 64: known=135, unknown=365
+Step 65: known=135, unknown=365
+Step 66: known=136, unknown=364
+Step 67: known=137, unknown=363
+Step 68: known=137, unknown=363
+Step 69: known=141, unknown=359
+Step 70: known=144, unknown=356
+Step 71: known=145, unknown=355
+Step 72: known=148, unknown=352
+Step 73: known=149, unknown=351
+Step 74: known=149, unknown=351
+Step 75: known=150, unknown=350
+Step 76: known=153, unknown=347
+Step 77: known=153, unknown=347
+Step 78: known=155, unknown=345
+Step 79: known=159, unknown=341
+Step 80: known=160, unknown=340
+Step 81: known=160, unknown=340
+Step 82: known=160, unknown=340
+Step 83: known=160, unknown=340
+Step 84: known=162, unknown=338
+Step 85: known=163, unknown=337
+Step 86: known=164, unknown=336
+Step 87: known=165, unknown=335
+Step 88: known=167, unknown=333
+Step 89: known=168, unknown=332
+Step 90: known=169, unknown=331
+Step 91: known=171, unknown=329
+Step 92: known=173, unknown=327
+Step 93: known=174, unknown=326
+Step 94: known=174, unknown=326
+Step 95: known=175, unknown=325
+Step 96: known=176, unknown=324
+Step 97: known=176, unknown=324
+Step 98: known=177, unknown=323
+Step 99: known=177, unknown=323
+Step 100: known=178, unknown=322
+Step 101: known=180, unknown=320
+Step 102: known=183, unknown=317
+Step 103: known=184, unknown=316
+Step 104: known=186, unknown=314
+Step 105: known=187, unknown=313
+Step 106: known=188, unknown=312
+Step 107: known=190, unknown=310
+Step 108: known=191, unknown=309
+Step 109: known=191, unknown=309
+Step 110: known=193, unknown=307
+Step 111: known=194, unknown=306
+Step 112: known=194, unknown=306
+Step 113: known=196, unknown=304
+Step 114: known=197, unknown=303
+Step 115: known=198, unknown=302
+Step 116: known=198, unknown=302
+Step 117: known=199, unknown=301
+Step 118: known=199, unknown=301
+Step 119: known=200, unknown=300
+Step 120: known=200, unknown=300
+Step 121: known=201, unknown=299
+Step 122: known=202, unknown=298
+Step 123: known=202, unknown=298
+Step 124: known=203, unknown=297
+Step 125: known=203, unknown=297
+Step 126: known=203, unknown=297
+Step 127: known=203, unknown=297
+Step 128: known=204, unknown=296
+Step 129: known=205, unknown=295
+Step 130: known=208, unknown=292
+Step 131: known=210, unknown=290
+Step 132: known=210, unknown=290
+Step 133: known=210, unknown=290
+Step 134: known=211, unknown=289
+Step 135: known=211, unknown=289
+Step 136: known=211, unknown=289
+Step 137: known=211, unknown=289
+Step 138: known=211, unknown=289
+Step 139: known=212, unknown=288
+Step 140: known=213, unknown=287
+Step 141: known=213, unknown=287
+Step 142: known=213, unknown=287
+Step 143: known=213, unknown=287
+Step 144: known=213, unknown=287
+Step 145: known=214, unknown=286
+Step 146: known=214, unknown=286
+Step 147: known=214, unknown=286
+Step 148: known=214, unknown=286
+Step 149: known=214, unknown=286
+Step 150: known=214, unknown=286
+Step 151: known=214, unknown=286
+Step 152: known=214, unknown=286
+Step 153: known=215, unknown=285
+Step 154: known=215, unknown=285
+Step 155: known=215, unknown=285
+Step 156: known=216, unknown=284
+Step 157: known=217, unknown=283
+Step 158: known=218, unknown=282
+Step 159: known=218, unknown=282
+Step 160: known=218, unknown=282
+Step 161: known=219, unknown=281
+Step 162: known=220, unknown=280
+Step 163: known=220, unknown=280
+Step 164: known=221, unknown=279
+Step 165: known=222, unknown=278
+Step 166: known=222, unknown=278
+Step 167: known=223, unknown=277
+Step 168: known=223, unknown=277
+Step 169: known=223, unknown=277
+Step 170: known=223, unknown=277
+Step 171: known=224, unknown=276
+Step 172: known=224, unknown=276
+Step 173: known=224, unknown=276
+Step 174: known=224, unknown=276
+Step 175: known=224, unknown=276
+Step 176: known=224, unknown=276
+Step 177: known=224, unknown=276
+Step 178: known=224, unknown=276
+Step 179: known=225, unknown=275
+Step 180: known=225, unknown=275
+Step 181: known=225, unknown=275
+Step 182: known=225, unknown=275
+Step 183: known=226, unknown=274
+Step 184: known=226, unknown=274
+Step 185: known=226, unknown=274
+Step 186: known=226, unknown=274
+Step 187: known=226, unknown=274
+Step 188: known=227, unknown=273
+Step 189: known=227, unknown=273
+Step 190: known=227, unknown=273
+Step 191: known=227, unknown=273
+Step 192: known=227, unknown=273
+Step 193: known=227, unknown=273
+Step 194: known=227, unknown=273
+Step 195: known=228, unknown=272
+Step 196: known=228, unknown=272
+Step 197: known=230, unknown=270
+Step 198: known=231, unknown=269
+Step 199: known=231, unknown=269
+Step 200: known=231, unknown=269
+Step 201: known=231, unknown=269
+Step 202: known=231, unknown=269
+Step 203: known=232, unknown=268
+Step 204: known=232, unknown=268
+Step 205: known=233, unknown=267
+Step 206: known=233, unknown=267
+Step 207: known=233, unknown=267
+Step 208: known=234, unknown=266
+Step 209: known=234, unknown=266
+Step 210: known=234, unknown=266
+Step 211: known=234, unknown=266
+Step 212: known=234, unknown=266
+Step 213: known=234, unknown=266
+Step 214: known=234, unknown=266
+Step 215: known=235, unknown=265
+Step 216: known=236, unknown=264
+Step 217: known=236, unknown=264
+Step 218: known=236, unknown=264
+Step 219: known=236, unknown=264
+Step 220: known=236, unknown=264
+Step 221: known=237, unknown=263
+Step 222: known=238, unknown=262
+Step 223: known=238, unknown=262
+Step 224: known=238, unknown=262
+Step 225: known=238, unknown=262
+Step 226: known=238, unknown=262
+Step 227: known=238, unknown=262
+Step 228: known=240, unknown=260
+Step 229: known=241, unknown=259
+Step 230: known=241, unknown=259
+Step 231: known=241, unknown=259
+Step 232: known=242, unknown=258
+Step 233: known=242, unknown=258
+Step 234: known=242, unknown=258
+Step 235: known=242, unknown=258
+Step 236: known=242, unknown=258
+Step 237: known=242, unknown=258
+Step 238: known=242, unknown=258
+Step 239: known=242, unknown=258
+Step 240: known=242, unknown=258
+Step 241: known=242, unknown=258
+Step 242: known=242, unknown=258
+Step 243: known=242, unknown=258
+Step 244: known=242, unknown=258
+Step 245: known=243, unknown=257
+Step 246: known=243, unknown=257
+Step 247: known=243, unknown=257
+Step 248: known=243, unknown=257
+Step 249: known=243, unknown=257
+Step 250: known=243, unknown=257
+Step 251: known=243, unknown=257
+Step 252: known=243, unknown=257
+Step 253: known=243, unknown=257
+Step 254: known=243, unknown=257
+Step 255: known=244, unknown=256
+Step 256: known=244, unknown=256
+Step 257: known=245, unknown=255
+Step 258: known=245, unknown=255
+Step 259: known=245, unknown=255
+Step 260: known=246, unknown=254
+Step 261: known=247, unknown=253
+Step 262: known=247, unknown=253
+Step 263: known=247, unknown=253
+Step 264: known=247, unknown=253
+Step 265: known=247, unknown=253
+Step 266: known=247, unknown=253
+Step 267: known=247, unknown=253
+Step 268: known=249, unknown=251
+Step 269: known=249, unknown=251
+Step 270: known=249, unknown=251
+Step 271: known=249, unknown=251
+Step 272: known=249, unknown=251
+Step 273: known=249, unknown=251
+Step 274: known=249, unknown=251
+Step 275: known=249, unknown=251
+Step 276: known=249, unknown=251
+Step 277: known=249, unknown=251
+Step 278: known=250, unknown=250
+Step 279: known=250, unknown=250
+Step 280: known=251, unknown=249
