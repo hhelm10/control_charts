@@ -27,7 +27,7 @@ plt.rcParams.update({"font.size": 9, "axes.spines.top": False, "axes.spines.righ
 ALPHAS = [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 0.6, 1.0]
 SEEDS = range(10)
 BOOK_PUB = 100
-BASE = dict(N=20, M=50, B=5, c_dec=LN2 / 20, chi=0.5, k_ctx=3, lam_mean=0.003, T=800)
+BASE = dict(N=20, M=50, B=5, c_dec=LN2 / 20, sim_floor=0.5, k_ctx=3, lam_mean=0.003, T=800)
 CONDS = {  # name -> (answer_policy, books, book_frac)
     "nomime":       ("firsthand", False, 0.0),
     "mime":         ("open",      False, 0.0),

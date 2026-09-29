@@ -19,7 +19,7 @@ plt.rcParams.update({"font.size": 9, "axes.spines.top": False, "axes.spines.righ
                      "axes.grid": True, "grid.alpha": 0.25, "axes.titlesize": 11,
                      "legend.fontsize": 7.5, "legend.frameon": False, "legend.handlelength": 2.2})
 
-BASE = dict(N=20, M=50, B=5, alpha=0.01, c_dec=LN2 / 20, chi=0.5, k_ctx=3, T=800)
+BASE = dict(N=20, M=50, B=5, alpha=0.01, c_dec=LN2 / 20, sim_floor=0.5, k_ctx=3, T=800)
 SEEDS = range(8)
 
 

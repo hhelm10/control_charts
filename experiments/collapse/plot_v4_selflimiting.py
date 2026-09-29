@@ -17,9 +17,9 @@ plt.rcParams.update({"font.size": 9, "axes.spines.top": False, "axes.spines.righ
 SEEDS = range(8)
 COMMON = dict(N=20, M=50, B=5, alpha=0.01, lam_mean=0.003, T=800)
 CELLS = [  # (label, effective lifetime, v3 kwargs, v4 kwargs) -- matched Delta/tau
-    ("lifetime 10 ($R_0\\approx1$)", 10, dict(c_dec=LN2 / 10, theta_ret=0.5), dict(c_dec=LN2 / 20, chi=np.exp(-10 * LN2 / 20), k_ctx=3)),
-    ("lifetime 6.4 ($R_0\\approx0.6$)", 6.4, dict(c_dec=LN2 / 6.4, theta_ret=0.5), dict(c_dec=LN2 / 20, chi=0.8, k_ctx=3)),
-    ("lifetime 4 ($R_0\\approx0.4$)", 4, dict(c_dec=LN2 / 4, theta_ret=0.5), dict(c_dec=LN2 / 20, chi=np.exp(-4 * LN2 / 20), k_ctx=3)),
+    ("lifetime 10 ($R_0\\approx1$)", 10, dict(c_dec=LN2 / 10, theta_ret=0.5), dict(c_dec=LN2 / 20, sim_floor=np.exp(-10 * LN2 / 20), k_ctx=3)),
+    ("lifetime 6.4 ($R_0\\approx0.6$)", 6.4, dict(c_dec=LN2 / 6.4, theta_ret=0.5), dict(c_dec=LN2 / 20, sim_floor=0.8, k_ctx=3)),
+    ("lifetime 4 ($R_0\\approx0.4$)", 4, dict(c_dec=LN2 / 4, theta_ret=0.5), dict(c_dec=LN2 / 20, sim_floor=np.exp(-4 * LN2 / 20), k_ctx=3)),
 ]
 
 
@@ -39,7 +39,7 @@ axes[0].legend(loc="center right")
 fig.suptitle("Crowding makes collapse self-limiting: dying agents stop inserting, so their old memories resurface",
              fontsize=11, x=0.01, ha="left", y=0.99)
 fig.text(0.01, 0.005,
-         "Matched effective memory lifetimes (v3: hard cutoff $\\tau$; v4: head start $\\Delta=\\ln(1/\\chi)/c$, context $k$=3).\n"
+         "Matched effective memory lifetimes (v3: hard cutoff $\\tau$; v4: head start $\\Delta=\\ln(1/\\sim_floor)/c$, context $k$=3).\n"
          "Baseline otherwise ($N$=20, $M$=50, $B$=5, $\\alpha$=0.01, $\\bar\\lambda$=0.003, mesh). "
          "Under crowding, $\\tau_{eff}=\\Delta+k/r_{ins}$ grows as the insertion rate falls. Mean of 8 seeds.",
          ha="left", va="bottom", fontsize=7.5, color=MUTED)

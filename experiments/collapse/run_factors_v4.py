@@ -10,15 +10,15 @@ from toy_v4 import run
 SEEDS = range(10)
 T = 800
 LN2 = float(np.log(2.0))
-BASE = dict(N=20, c_dec=LN2 / 20, chi=0.5, k_ctx=3, sigma="staleness_aware", B=5,  # agent
+BASE = dict(N=20, c_dec=LN2 / 20, sim_floor=0.5, k_ctx=3, sigma="staleness_aware", B=5,  # agent
             M=50, lam_mean=0.003, lam_disp=1.0, s_env=0.0,                       # environment
             s_ask=0.0, mean_degree=None, peer="uniform",                         # communication
             alpha=0.01, n_obs_frac=1.0)                                          # observation
-# With chi = 0.5 the similarity head start is Delta = ln2/c_dec = 20 steps at
+# With sim_floor = 0.5 the similarity head start is Delta = ln2/c_dec = 20 steps at
 # baseline, and tau_eff = Delta + k_ctx/r_ins ~ 21 -> R0 ~ 2, matching v3's clocks.
 
 FACTORS = {
-    # x gives Delta = {99, 50, 20, 10, 5, 2.5} at chi = 0.5
+    # x gives Delta = {99, 50, 20, 10, 5, 2.5} at sim_floor = 0.5
     "agent":         dict(x="c_dec", xs=[round(LN2 / t, 4) for t in (99, 50, 20, 10, 5, 2.5)],
                           color="N", colors=[5, 20, 100],
                           style="k_ctx", styles=[3, 7]),

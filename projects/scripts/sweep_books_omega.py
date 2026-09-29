@@ -24,7 +24,7 @@ TAIL = 200  # steps of the T=600 run averaged (recorded every 5)
 
 def one(job):
     label, books, p, W, lam, seed = job
-    r = run(N=10, M=200, B=11, alpha=1 / 11, c_dec=0.05, chi=0.5, k_ctx=3,
+    r = run(N=10, M=200, B=11, alpha=1 / 11, c_dec=0.05, sim_floor=0.5, k_ctx=3,
             lam_mean=lam, lam_disp=1.0, answer_policy="firsthand",
             books=books, book_frac=1.0, book_write_p=p, book_write_W=W,
             T=600, seed=seed)

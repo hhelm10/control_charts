@@ -26,7 +26,7 @@ plt.rcParams.update({"font.size": 9, "axes.spines.top": False, "axes.spines.righ
 ALPHAS = [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 0.6, 1.0]
 BUDGETS = [2, 5]
 SEEDS = range(10)
-BASE = dict(N=20, M=50, c_dec=LN2 / 20, chi=0.5, k_ctx=3, lam_mean=0.003, T=800)
+BASE = dict(N=20, M=50, c_dec=LN2 / 20, sim_floor=0.5, k_ctx=3, lam_mean=0.003, T=800)
 GREY = "#444444"
 
 

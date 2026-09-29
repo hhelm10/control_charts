@@ -37,12 +37,12 @@ def curves(c_dec):
     acc = {"fast": [], "slow": []}
     for s in range(SEEDS):
         # find this seed's extreme questions from the lambda draw (same rng order)
-        probe = toy_v4.run(N=10, M=50, B=11, alpha=3 / 11, c_dec=c_dec, chi=0.5, k_ctx=3,
+        probe = toy_v4.run(N=10, M=50, B=11, alpha=3 / 11, c_dec=c_dec, sim_floor=0.5, k_ctx=3,
                            lam_mean=0.01, lam_disp=1.0, answer_policy="firsthand",
                            T=1, seed=s, record_every=1, warm_start=True)
         lam = probe["_state"]["lam"]
         qf, qs_ = int(np.argmax(lam)), int(np.argmin(lam))
-        r = toy_v4.run(N=10, M=50, B=11, alpha=3 / 11, c_dec=c_dec, chi=0.5, k_ctx=3,
+        r = toy_v4.run(N=10, M=50, B=11, alpha=3 / 11, c_dec=c_dec, sim_floor=0.5, k_ctx=3,
                        lam_mean=0.01, lam_disp=1.0, answer_policy="firsthand",
                        T=T, seed=s, record_every=1, warm_start=True, track=[qf, qs_])
         kn = np.array(r["track_knows"]); co = np.array(r["track_corr"])

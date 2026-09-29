@@ -1,6 +1,6 @@
 """Factor figures for toy v4 (crowding retrieval). Layout and encoding as before;
 the agent lever is the relevance decay rate c_dec, which under crowding sets the
-similarity head start Delta = ln(1/chi)/c_dec of the exact match over
+similarity head start Delta = ln(1/sim_floor)/c_dec of the exact match over
 cross-question entries in the finite context."""
 import json
 import numpy as np
@@ -92,9 +92,9 @@ def draw_row(axes, metric, ylabel, show_xlabel=True, show_title=True, row_label=
         ax.axvline(bx, color=MUTED, ls=":", lw=1.1)
         if i == 0 and show_title:
             ax.text(bx, -0.02, " baseline", color=MUTED, fontsize=7, va="bottom", ha="left")
-        if xkey == "c_dec":  # R0 = 1 at Delta + k/r ~ M/m, i.e. c ~ ln(1/chi) * m / M (r large)
+        if xkey == "c_dec":  # R0 = 1 at Delta + k/r ~ M/m, i.e. c ~ ln(1/sim_floor) * m / M (r large)
             m_bw = (1 - BASE["alpha"]) * BASE["B"]
-            thr = np.log(1 / BASE["chi"]) * m_bw / BASE["M"]
+            thr = np.log(1 / BASE["sim_floor"]) * m_bw / BASE["M"]
             ax.axvline(thr, color=MUTED, ls="--", lw=0.9)
             if show_title:
                 ax.text(thr, 1.02, "$R_0$=1 ", color=MUTED, fontsize=7, va="top", ha="right")
@@ -117,8 +117,8 @@ def draw_row(axes, metric, ylabel, show_xlabel=True, show_title=True, row_label=
 def footer(fig):
     b = BASE
     fig.text(0.01, 0.005,
-             f"Other factors at baseline (dotted line): $N$={b['N']}, decay $c$={b['c_dec']:.4f}, cross-similarity $\\chi$={b['chi']} "
-             f"(head start $\\Delta=\\ln(1/\\chi)/c$ = {np.log(1/b['chi']) / b['c_dec']:.0f} steps), context $k$={b['k_ctx']}, staleness-aware asking, budget $B$={b['B']} · "
+             f"Other factors at baseline (dotted line): $N$={b['N']}, decay $c$={b['c_dec']:.4f}, cross-similarity $\\sim_floor$={b['sim_floor']} "
+             f"(head start $\\Delta=\\ln(1/\\sim_floor)/c$ = {np.log(1/b['sim_floor']) / b['c_dec']:.0f} steps), context $k$={b['k_ctx']}, staleness-aware asking, budget $B$={b['B']} · "
              f"full mesh, random peer, flat demand · $M$={b['M']}, speeds log-normal($\\bar\\lambda$={b['lam_mean']}, $\\sigma_\\lambda$={b['lam_disp']:g}), flat environment · $\\alpha$={b['alpha']}, all agents observe.\n"
              f"Model v4 (crowding): the database never deletes; every received answer inserts; question $q$ is answerable iff fewer than $k$ fresher "
              f"insertions outrank its entry's decayed score in the fixed context.\n"

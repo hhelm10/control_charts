@@ -1,6 +1,6 @@
 """Figure 1 analysis: real-system (gpt-4o-mini) probe-IDK trajectories per setting,
 with zero-free-parameter toy-v4 overlays calibrated from measurables:
-chi = 0.6 (k-th best off-target nomic cosine), c = decay coefficient,
+sim_floor = 0.6 (k-th best off-target nomic cosine), c = decay coefficient,
 k_ctx = retrieval_k, B = questions_per_turn, M = total_questions, N = 10.
 Toy approximations: no observation channel (alpha ~ 0; the real system's only
 environment input is temporal-question ownership), repo ask policy
@@ -39,7 +39,7 @@ SETTINGS = {  # name -> (title, toy overrides)
     "deg2":      ("mean degree 2", dict(mean_degree=2)),
     "deg6":      ("mean degree 6", dict(mean_degree=6)),
 }
-TOY_BASE = dict(N=10, M=50, B=5, alpha=0.0, c_dec=0.05, chi=CHI, k_ctx=3,
+TOY_BASE = dict(N=10, M=50, B=5, alpha=0.0, c_dec=0.05, sim_floor=CHI, k_ctx=3,
                 lam_mean=1e-9, lam_disp=0.0,
                 sigma="unknown_first", answer_policy="open", T=1000)
 

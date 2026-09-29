@@ -96,8 +96,11 @@ We track these at two levels: \emph{agent level} (the average member) and \emph{
 
 \textbf{A proxy system.} The main object of our study is a system of LLM agents.
 Even with relatively dated models such as \texttt{gpt-4o-mini}, a single system evolution with a population of 10 agents run for 500 steps costs $\sim\$5$.
-At the scale required to establish trends across parameters, strategies, and seeds --- hundreds of evolutions per figure --- this can be prohibitively expensive.
-To mitigate this cost, we replace the LLM call with a measured model of its answering behavior. Because agents relay verbatim, the LLM's causal role reduces to a gate --- given the retrieved context, emit the stored payload or abstain --- and that gate is measurable: probing the model across its (finitely many, up to exchangeability and similarity bucketing) context states yields a near-deterministic step function with essentially no leakage of the model's parametric knowledge. Substituting this measured table into the same code path yields a proxy with \emph{zero fitted parameters} that reproduces the real system's statistics across two full parameter grids with median deviation $0.01$ on all four metrics (Fig.~\ref{fig:cal}). Results below run on this validated proxy except where marked real.
+At the scale required to establish trends across environmental, agentic, and topological parameters this cost can be prohibitively expensive.
+To mitigate it, we replace the LLM call with a model of its answering behavior.
+In particular, we estimate the probability of a response in each state by probing an LLM repeatedly and substitute the LLM in the system with a simple random sample from a multinomial distribution.
+The proposed proxy reproduces the statistics of the real system with median deviation 0.01 (Figure \ref{fig:cal}).
+Results below are produced with the proxy system unless otherwise stated.
 
 \begin{figure*}[b]
   \centering
@@ -108,7 +111,9 @@ To mitigate this cost, we replace the LLM call with a measured model of its answ
 
 \subsection{Epistemic collapse}
 \label{sec:collapse}
-We say an agent has \emph{epistemically collapsed} on a question set when it can no longer ground answers and produces only abstentions; the \emph{system} has collapsed when no member can answer. Collapse has a quieter twin: an agent whose evidence has expired but still surfaces it answers \emph{confidently and wrongly} --- availability survives, accuracy dies. Both matter, and every mechanism below prices them differently.
+For a given question $ q $ we define epistemic collapse as the state in which no agent in the system answers $ q $ correctly: every agent either abstains (it has \emph{forgotten}) or answers with an out-of-date answer (it is \emph{stale}).
+The two failure modes are observationally distinct --- forgetting is visible as abstention, while staleness is a confident wrong answer --- and the mechanisms below trade one for the other.
+For an environment with $ M $ questions, we define $ \chi $-epistemic collapse as the state in which at least a fraction $ \chi $ of the $ M $ questions are in epistemic collapse; $\chi = 1$ is total collapse, in which the system as a whole can no longer answer anything correctly.
 
 Figure~\ref{fig:example} shows collapse from the best possible start: every agent warm-started with current, firsthand knowledge of everything. Accuracy falls from $\approx 1$ to a plateau set by memory decay ($\sim$0.61 at $c=0.05$, $\sim$0.14 at $c=0.5$; left). Conditioned on being wrong, the fast-decay system fails purely by \emph{forgetting} (100\% abstention); the slow-decay system's errors are $\sim$90\% forgetting and $\sim$10\% \emph{confident staleness} --- rising to $\sim$25\% in the early transient --- with the stale share concentrated on the fastest-revising questions. Abstention is insensitive to how fast any fact revises, but highly sensitive to how many facts there are: steady-state P(IDK) climbs from $0.18$ to $0.90$ as the environment grows from $25$ to $400$ questions at fixed budget (right) --- breadth, not speed, silences the population, because every new fact's insertions crowd the others out of retrievable memory. The same regimes appear in the real gpt-4o-mini factor grids (project artifacts): decay ($c: 0.05 \to 1.0$ takes agent IDK $0.35 \to 0.89$), source starvation (environment bandwidth $E: 6 \to 1$ takes system IDK $0 \to 0.29$), environment speed ($\bar\lambda: 0.001 \to 0.1$ takes system accuracy $0.93 \to 0.20$ without moving abstention).
 

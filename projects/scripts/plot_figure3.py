@@ -24,7 +24,7 @@ plt.rcParams.update({"font.size": 9, "axes.spines.top": False, "axes.spines.righ
 
 SEEDS = range(10)
 BOOK_PUB = 100
-BASE = dict(N=20, M=50, B=5, alpha=0.01, c_dec=LN2 / 20, chi=0.5, k_ctx=3,
+BASE = dict(N=20, M=50, B=5, alpha=0.01, c_dec=LN2 / 20, sim_floor=0.5, k_ctx=3,
             lam_mean=0.003, T=800)
 SOCIETIES = {  # name -> (answer_policy, books, book_frac, style)
     "no mimesis": ("firsthand", False, 0.0, dict(color=GREY, ls="--", marker="s", markerfacecolor="white")),

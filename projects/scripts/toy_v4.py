@@ -3,14 +3,14 @@
 The database never deletes. Retrieval for question q ranks every stored entry by
     score = <q, entry> * exp(-c_dec * (t - t_recv_entry))
 and returns the top k_ctx into a finite, fixed context. The exact-match entry has
-<q,k> = 1; entries for other questions have cross-similarity chi < 1. The agent
+<q,k> = 1; entries for other questions have cross-similarity sim_floor < 1. The agent
 can answer q iff its q-entry makes the context, i.e. iff fewer than k_ctx other
 entries outscore it. A competitor received at time s outscores the q-entry
-(received at t_recv) iff  chi * e^{-c(t-s)} > e^{-c(t-t_recv)}, i.e. iff
-    s > t_recv + Delta,   Delta = ln(1/chi) / c_dec.
+(received at t_recv) iff  sim_floor * e^{-c(t-s)} > e^{-c(t-t_recv)}, i.e. iff
+    s > t_recv + Delta,   Delta = ln(1/sim_floor) / c_dec.
 So the q-entry is visible iff (# insertions after t_recv + Delta) < k_ctx:
 
-    tau_eff = Delta + time for k_ctx further insertions ~ ln(1/chi)/c_dec + k_ctx / r_ins.
+    tau_eff = Delta + time for k_ctx further insertions ~ ln(1/sim_floor)/c_dec + k_ctx / r_ins.
 
 Forgetting is therefore ACTIVITY-DEPENDENT: every answer received and every
 observation inserts a new entry (the repo always inserts) and crowds the rest;
@@ -33,14 +33,14 @@ def zipf(M, s, rng):
     p = r ** (-s); return p / p.sum()
 
 
-def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, chi=0.5, k_ctx=3,
+def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, sim_floor=0.5, k_ctx=3,
         lam_mean=0.01, lam_disp=1.0, frac_static=0.0,
         s_env=0.0, s_ask=0.0, sigma="staleness_aware", peer="uniform", mean_degree=None,
         n_obs_frac=1.0, answer_policy="open", books=False, book_pub=100, book_frac=0.5,
         book_write_p=0.0, book_write_W=1,
         T=1000, seed=0, record_every=5, warm_start=False, track=None):
-    """chi: cross-question similarity (score floor of off-target entries);
-    k_ctx: context size (retrieval depth). Delta = ln(1/chi)/c_dec.
+    """sim_floor: cross-question similarity (score floor of off-target entries);
+    k_ctx: context size (retrieval depth). Delta = ln(1/sim_floor)/c_dec.
     answer_policy: "open" = answer from any retrievable entry (default);
     "firsthand" = no miming -- only self-observed evidence grounds an answer,
     and hearsay is never re-told. Received answers still insert (and crowd).
@@ -63,7 +63,7 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, chi=0.5, k_ctx=3,
         lam = np.full(M, lam_mean)
     if frac_static > 0:                                # a random subset of questions never changes
         lam[rng.random(M) < frac_static] = 0.0
-    delta = np.log(1.0 / chi) / c_dec
+    delta = np.log(1.0 / sim_floor) / c_dec
     p_env = zipf(M, s_env, rng)
     p_ask = zipf(M, s_ask, rng)
     truth = np.zeros(M, dtype=np.int64)
