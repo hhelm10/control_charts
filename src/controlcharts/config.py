@@ -92,6 +92,7 @@ class SimulationConfig(BaseModel):
     seed: int = Field(default=42, description="Random seed for reproducibility")
     questions_per_turn: int = Field(default=1, description="Questions each agent asks per turn (K)")
     env_queries_per_turn: int = Field(default=0, description="Environment consultations per agent per turn (E); budget B = K + E")
+    warm_start: bool = Field(default=False, description="Seed every agent with the current truth of every question (firsthand, t=0)")
     forget_strategy: ForgetStrategyConfig = Field(default_factory=ForgetStrategyConfig)
     temporal_kernel: TemporalKernelConfig = Field(default_factory=TemporalKernelConfig)
 

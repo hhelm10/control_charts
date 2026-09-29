@@ -371,6 +371,15 @@ def run(
         if hasattr(h, "truth_fn"):
             h.truth_fn = sim.current_truth
 
+    if config.simulation.warm_start:
+        # Warm start: every agent observes every question at t=0 (fresh + current)
+        for agent in network.agents:
+            for q in questions_in_play:
+                truth = sim.current_truth(q)
+                if truth is not None:
+                    agent.observe(q, truth, question_embeddings[q])
+        console.print(f"✓ Warm start: seeded {len(network.agents)} agents with all {len(questions_in_play)} questions")
+
     # Run simulation
     console.print(f"\n[bold]Running simulation for {config.simulation.max_iterations} iterations...[/bold]\n")
 

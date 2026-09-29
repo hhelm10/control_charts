@@ -158,6 +158,7 @@ class TemporalKernelHook:
         agents: list["Agent"] | None = None,
         agent_ids: list[int] | None = None,
         temporal_values_snapshot: dict[str, int] | None = None,
+        truths_snapshot: dict | None = None,
     ) -> Path:
         """Save a snapshot to disk."""
         snapshot_path = self.output_dir / f"snapshot_step_{step:04d}.npz"
@@ -182,7 +183,8 @@ class TemporalKernelHook:
             "shape": list(embeddings.shape),
             "temporal_mask": self.sampled_temporal_mask,  # Which questions are temporal
             "temporal_values": temporal_values_snapshot or {},  # Current values for each temporal question
-            "truths": ({q: self.truth_fn(q) for q in questions} if self.truth_fn else {}),
+            "truths": (truths_snapshot if truths_snapshot is not None
+                       else ({q: self.truth_fn(q) for q in questions} if self.truth_fn else {})),
         }
 
         metadata_path = self.output_dir / f"snapshot_step_{step:04d}_meta.json"
@@ -221,6 +223,7 @@ class TemporalKernelHook:
             "responses": responses,
             "agent_ids": [a.id for a in agents],
             "temporal_values_snapshot": dict(self.temporal_values),  # Copy current values
+            "truths_snapshot": ({q: self.truth_fn(q) for q in questions} if self.truth_fn else {}),
         })
         logger.info(f"Stored snapshot for step {step} (will embed at end)")
 
@@ -275,6 +278,7 @@ class TemporalKernelHook:
                 agents=None,  # We stored agent_ids separately
                 agent_ids=snapshot["agent_ids"],
                 temporal_values_snapshot=snapshot.get("temporal_values_snapshot"),
+                truths_snapshot=snapshot.get("truths_snapshot"),
             )
             logger.info(f"Saved snapshot for step {snapshot['step']} to {path}")
 

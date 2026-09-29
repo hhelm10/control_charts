@@ -38,7 +38,7 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, chi=0.5, k_ctx=3,
         s_env=0.0, s_ask=0.0, sigma="staleness_aware", peer="uniform", mean_degree=None,
         n_obs_frac=1.0, answer_policy="open", books=False, book_pub=100, book_frac=0.5,
         book_write_p=0.0, book_write_W=1,
-        T=1000, seed=0, record_every=5):
+        T=1000, seed=0, record_every=5, warm_start=False, track=None):
     """chi: cross-question similarity (score floor of off-target entries);
     k_ctx: context size (retrieval depth). Delta = ln(1/chi)/c_dec.
     answer_policy: "open" = answer from any retrievable entry (default);
@@ -80,12 +80,18 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, chi=0.5, k_ctx=3,
     pub_v = np.zeros(M, dtype=np.int64)
     C = np.zeros((N, T + 1), dtype=np.int64)          # cumulative insertions per agent, end of step
     write_attempts = np.zeros(N, dtype=np.int64)      # costly-writing progress per agent
-    # seed: every question observed once at t=0 by a random agent (each seed inserts)
-    seed_a = rng.integers(0, N, size=M)
-    t_obs[seed_a, np.arange(M)] = 0; t_recv[seed_a, np.arange(M)] = 0
-    t_fh[seed_a, np.arange(M)] = 0; o_fh[seed_a, np.arange(M)] = 0
-    ms_t[:] = 0                                        # the seeding observations are all recorded
-    np.add.at(C[:, 0], seed_a, 1)
+    if warm_start:
+        # warm start: every agent observes every question at t=0 (fresh + current)
+        t_obs[:, :] = 0; t_recv[:, :] = 0; t_fh[:, :] = 0; o_fh[:, :] = 0
+        ms_t[:] = 0
+        C[:, 0] = M
+    else:
+        # seed: every question observed once at t=0 by a random agent (each seed inserts)
+        seed_a = rng.integers(0, N, size=M)
+        t_obs[seed_a, np.arange(M)] = 0; t_recv[seed_a, np.arange(M)] = 0
+        t_fh[seed_a, np.arange(M)] = 0; o_fh[seed_a, np.arange(M)] = 0
+        ms_t[:] = 0                                        # the seeding observations are all recorded
+        np.add.at(C[:, 0], seed_a, 1)
 
     if mean_degree is None or mean_degree >= N - 1:
         A = np.ones((N, N), dtype=bool); np.fill_diagonal(A, False)
@@ -108,6 +114,8 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, chi=0.5, k_ctx=3,
         return held & (safe | (n_after < k_ctx))
 
     out = {k: [] for k in ["t", "idk", "idk_demand", "correct", "stale", "dead_q", "sys_corr"]}
+    if track is not None:
+        out["track_knows"] = []; out["track_corr"] = []
     for t in range(1, T + 1):
         truth += rng.random(M) < lam
         Cprev = C[:, t - 1]
@@ -214,6 +222,9 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, chi=0.5, k_ctx=3,
             out["stale"].append((knows & ~corr).mean())
             out["dead_q"].append(1 - knows.any(axis=0).mean())
             out["sys_corr"].append(corr.any(axis=0).mean())   # >=1 agent answers correctly
+            if track is not None:
+                out["track_knows"].append(knows[:, track].mean(axis=0))
+                out["track_corr"].append(corr[:, track].mean(axis=0))
     res = {k: np.asarray(v) for k, v in out.items()}
     res["_state"] = dict(t=T, t_recv=t_recv, t_obs=t_obs, t_fh=t_fh, C=C, delta=delta, c_dec=c_dec, k_ctx=k_ctx, lam=lam)
     return res
