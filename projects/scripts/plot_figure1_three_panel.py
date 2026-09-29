@@ -31,10 +31,11 @@ SYSTEMS = {  # label -> (color, run glob, toy key prefix)
 SCOPES = {"agg": ("all questions", "-", 2.6)}
 IDK = ("i don't know",)
 MS = [25, 50, 100, 200, 400]
-plt.rcParams.update({"font.size": 10, "axes.spines.top": False, "axes.spines.right": False,
+plt.rcParams.update({"font.size": 12, "axes.spines.top": False, "axes.spines.right": False,
                      "axes.grid": True, "grid.alpha": 0.25,
-                     "axes.titlesize": 12, "axes.labelsize": 12,
-                     "legend.fontsize": 8, "legend.frameon": False})
+                     "axes.titlesize": 15, "axes.labelsize": 14,
+                     "xtick.labelsize": 12, "ytick.labelsize": 12,
+                     "legend.fontsize": 11, "legend.frameon": False})
 
 
 def run_curves(d):
@@ -73,24 +74,26 @@ def main():
             cor = sm(np.mean([r[1][scope][0] for r in per], axis=0), w)
             idk = sm(np.mean([r[1][scope][1] for r in per], axis=0), w)
             axA.plot(ts, cor, color=col, lw=lw, ls=ls)
-            axB.plot(ts, idk, color=col, lw=lw, ls=ls)
-            axB.plot(ts, 1 - cor - idk, color=col, lw=lw * 0.7, ls="--")
+            wrong = 1 - cor
+            ok = wrong > 0.02                      # conditional undefined when nothing is wrong
+            axB.plot(ts[ok], idk[ok] / wrong[ok], color=col, lw=lw, ls=ls)
+            axB.plot(ts[ok], (wrong[ok] - idk[ok]) / wrong[ok], color=col, lw=lw * 0.7, ls="--")
             m = np.array([toy[f"{ckey}-{M}-{scope}"][0] for M in MS])
             s = np.array([toy[f"{ckey}-{M}-{scope}"][1] for M in MS])
             axC.errorbar(MS, m, yerr=s, color=col, lw=lw, ls=ls, marker="o", ms=4,
                          capsize=2)
     axA.axhline(1 / 50, color=MUTED, ls=":", lw=1.4, zorder=1)
     axA.text(0.98, 1 / 50 + 0.02, "chance ($1/M$)", transform=axA.get_yaxis_transform(),
-             ha="right", fontsize=8.5, color=MUTED)
+             ha="right", fontsize=11, color=MUTED)
     axA.set_title("memory decay affects accuracy", loc="left")
     axA.set_xlabel("step"); axA.set_ylabel("P(correct)")
     hsys = [Line2D([], [], color=c, lw=2.4, label=l) for l, (c, _, _) in SYSTEMS.items()]
     axA.legend(handles=hsys, loc="upper right")
     axB.set_title("staleness versus forgetting", loc="left")
-    axB.set_xlabel("step"); axB.set_ylabel("share of responses")
-    hB = [Line2D([], [], color=INK, lw=1.8, label="P(“I don’t know”)"),
-          Line2D([], [], color=INK, lw=1.3, ls="--", label="P(stale)")]
-    axB.legend(handles=hB, loc="center right")
+    axB.set_xlabel("step"); axB.set_ylabel("share of wrong responses")
+    hB = [Line2D([], [], color=INK, lw=1.8, label="P(“I don’t know”$\,|\,$wrong)"),
+          Line2D([], [], color=INK, lw=1.3, ls="--", label="P(stale$\,|\,$wrong)")]
+    axB.legend(handles=hB, loc="center left")
     axC.set_title("environment size affects forgetting", loc="left")
     axC.set_xscale("log"); axC.set_xticks(MS)
     axC.set_xticklabels([str(M) for M in MS])
