@@ -69,7 +69,10 @@ Building on our earlier work on monitoring multi-agent systems (\emph{Control Ch
 Our investigation is organized around a failure mode we call \emph{epistemic collapse}.
 
 \section{Setting}
-We model the information landscape as a multi-agent system evolving in discrete steps. It has three components --- an environment, a population of agents, and a communication topology that joins them --- each with its own levers; particular instantiations (population size, rates, budgets) are reported with each figure.
+We model the information landscape as a multi-agent system evolving in discrete steps.
+At each iteration, the environment revises some of its answers, and each agent spends its per-step bandwidth gathering information --- querying the environment directly and asking the peers it is connected to --- with newly gathered knowledge inserted into its memory; at regular intervals, every agent is probed on a fixed panel of questions.
+The system has three components: an environment, a population of agents, and a communication topology.
+Particular instantiations (population size, rates, budgets) are reported with each figure.
 
 \textbf{Environment.}
 The environment is defined as a set of $ M $ question and answer pairs and is the system's only source of truth.
