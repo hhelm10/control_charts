@@ -70,8 +70,8 @@ Our investigation is organized around a failure mode we call \emph{epistemic col
 
 \section{Setting}
 We model the information landscape as a multi-agent system evolving in discrete steps.
-At each iteration, the environment revises some of its answers, and each agent spends its per-step bandwidth gathering information --- querying the environment directly and asking the peers it is connected to --- with newly gathered knowledge inserted into its memory; at regular intervals, every agent is probed on a fixed panel of questions.
 The system has three components: an environment, a population of agents, and a communication topology.
+At each iteration, the information in the environment changes and each agent spends a per-step budget obtaining information --- either via querying the environment directly or by asking a peer it is connected to.
 Particular instantiations (population size, rates, budgets) are reported with each figure.
 
 \textbf{Environment.}
@@ -91,9 +91,13 @@ It spends $E$ on obtaining information from the environment and $K = B - E$ obta
 An exchange on an environment edge (a query) returns the current truth. An exchange on a peer edge redistributes existing information. The reply (possibly an abstention) inserts into the asker's memory as received evidence.
 We study the effect of the average number of peer-to-peer edges in the communication topology, the total bandwidth $ B $, budget allocation strategy $ E / K $, and sharing policy (Sec.~\ref{sec:mimesis}) on system dynamics.
 
-\textbf{Measurement.} On a fixed probe panel, every agent is asked every probe question at regular intervals. Each response is exactly one of \emph{correct}, \emph{stale} (an answer, but out of date), or an \emph{abstention}, so P(correct) + P(stale) + P(IDK) $= 1$. We track these at two levels: \emph{agent level} (the average member) and \emph{system level} (whether \emph{no} member can answer, and whether \emph{some} member is correct). The levels nest --- system IDK $\le$ agent IDK, agent correct $\le$ system correct --- so both can share an axis.
+\textbf{Measurement.} Every agent is asked every question in the environment at regular intervals. Each response is exactly one of \emph{correct}, \emph{stale} (an answer, but out of date), or an \emph{abstention} / ``I don't know'', so P(correct) + P(stale) + P(IDK) $= 1$.
+We track these at two levels: \emph{agent level} (the average member) and \emph{system level} (whether \emph{no} member can answer, and whether \emph{some} member is correct).
 
-\textbf{A measured proxy.} Our real systems are networks of LLM agents (gpt-4o-mini); real runs cost money, so most experiments run on a proxy with \emph{zero fitted parameters}. Under verbatim relay the LLM's causal role reduces to a gate --- given the retrieved context, emit the stored payload or abstain --- and that gate is measurable: probing the model across its (finitely many, up to exchangeability and similarity bucketing) context states yields a near-deterministic step function, with essentially no leakage of the model's parametric knowledge. Replacing the LLM call with this measured table, in the same code path, reproduces the real system's statistics across two full factor grids with median deviation $0.01$ on all four metrics (Fig.~\ref{fig:cal}). Results below run on this validated proxy except where marked real.
+\textbf{A proxy system.} The main object of our study is a system of LLM agents.
+Even with relatively dated models such as \texttt{gpt-4o-mini}, a single system evolution with a population of 10 agents run for 500 steps costs $\sim\$5$.
+At the scale required to establish trends across parameters, strategies, and seeds --- hundreds of evolutions per figure --- this can be prohibitively expensive.
+To mitigate this cost, we replace the LLM call with a measured model of its answering behavior. Because agents relay verbatim, the LLM's causal role reduces to a gate --- given the retrieved context, emit the stored payload or abstain --- and that gate is measurable: probing the model across its (finitely many, up to exchangeability and similarity bucketing) context states yields a near-deterministic step function with essentially no leakage of the model's parametric knowledge. Substituting this measured table into the same code path yields a proxy with \emph{zero fitted parameters} that reproduces the real system's statistics across two full parameter grids with median deviation $0.01$ on all four metrics (Fig.~\ref{fig:cal}). Results below run on this validated proxy except where marked real.
 
 \begin{figure*}[b]
   \centering
