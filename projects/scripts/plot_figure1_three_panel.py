@@ -5,7 +5,8 @@ question (line style), for two memory-decay systems (color).
     the current truth of all 50 questions), 20-question probe panel.
 (b) The failure mass broken down: P(IDK) vs P(stale) over time (marker/metric),
     same runs. correct + idk + stale = 1 within each scope.
-(c) Steady-state agent-level P(IDK) as a function of the environment's breadth
+(c) Steady-state P(IDK), agent level (solid) and system level = fraction of
+    questions in epistemic collapse (dashed), as a function of the environment's breadth
     M (questions to track); toy platform, 8 seeds, cold-start T=600.
 
 Data source for (a)/(b): WS_PREFIX env var -- ws-surr (measured-gate proxy,
@@ -82,6 +83,11 @@ def main():
             s = np.array([toy[f"{ckey}-{M}-{scope}"][1] for M in MS])
             axC.errorbar(MS, m, yerr=s, color=col, lw=lw, ls=ls, marker="o", ms=4,
                          capsize=2)
+        # system level: fraction of questions no agent can answer (= epistemic collapse)
+        m = np.array([toy[f"{ckey}-{M}-sys"][0] for M in MS])
+        s = np.array([toy[f"{ckey}-{M}-sys"][1] for M in MS])
+        axC.errorbar(MS, m, yerr=s, color=col, lw=2.2, ls="--", marker="s", ms=5,
+                     markerfacecolor="white", capsize=2)
     axA.axhline(1 / 50, color=MUTED, ls=":", lw=1.4, zorder=1)
     axA.text(0.98, 1 / 50 + 0.02, "chance ($1/M$)", transform=axA.get_yaxis_transform(),
              ha="right", fontsize=11, color=MUTED)
@@ -100,6 +106,10 @@ def main():
     axC.xaxis.set_minor_locator(matplotlib.ticker.NullLocator())
     axC.set_xlabel("questions in the environment ($M$)")
     axC.set_ylabel("steady-state P(“I don’t know”)")
+    hC = [Line2D([], [], color=INK, lw=2.2, marker="o", ms=4, label="agent"),
+          Line2D([], [], color=INK, lw=2.2, ls="--", marker="s", ms=5,
+                 markerfacecolor="white", label="system (collapse)")]
+    axC.legend(handles=hC, loc="center right", bbox_to_anchor=(1.03, 0.42), handlelength=1.3, handletextpad=0.5)
     for ax in axes:
         ax.set_ylim(-0.03, 1.03)
     fig.tight_layout()

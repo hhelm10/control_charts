@@ -50,7 +50,7 @@
     As system evolves, agent knowledge is updated only via direct observations from the environment and retrieved via top-$k_{\mathrm{ctx}}$ relevance $\langle q, k \rangle\, e^{-c\,\mathrm{age}}$.
     \textit{Left.} Temporal component of memory effects an agent's ability to answer a question correctly.
     \textit{Center.} The proportion of forgotten answers versus stale answers is higher in fast forgetting agents.
-    \textit{Right.} A large environment causes epistemic collapse in both fast forgetting and slow forgetting agents.}
+    \textit{Right.} A large environment causes epistemic collapse in both fast forgetting and slow forgetting agents (solid: agent-level P(IDK); dashed: system level, the fraction of questions in epistemic collapse).}
     \label{fig:example}
     \vspace{1.2em}
   \endgroup
@@ -111,9 +111,9 @@ Results below are produced with the proxy system unless otherwise stated.
 
 \subsection{Epistemic collapse}
 \label{sec:collapse}
-For a given question $ q $ we define epistemic collapse as the state in which no agent in the system answers $ q $ correctly: every agent either abstains (it has \emph{forgotten}) or answers with an out-of-date answer (it is \emph{stale}).
-The two failure modes are observationally distinct --- forgetting is visible as abstention, while staleness is a confident wrong answer --- and the mechanisms below trade one for the other.
-For an environment with $ M $ questions, we define $ \chi $-epistemic collapse as the state in which at least a fraction $ \chi $ of the $ M $ questions are in epistemic collapse; $\chi = 1$ is total collapse, in which the system as a whole can no longer answer anything correctly.
+For a given question $ q $ we define epistemic collapse as the state in which every agent in the system responds to $ q $ with ``I don't know'': the knowledge has been forgotten by the whole population, and no agent can supply any answer at all.
+Collapse is distinct from \emph{staleness}, in which agents still answer but with an out-of-date answer; staleness is a failure of accuracy, collapse is a failure of availability, and the mechanisms below trade one for the other.
+For an environment with $ M $ questions, we define $ \chi $-epistemic collapse as the state in which at least a fraction $ \chi $ of the $ M $ questions are in epistemic collapse; $\chi = 1$ is total collapse, in which no agent can answer anything.
 
 Figure~\ref{fig:example} shows collapse from the best possible start: every agent warm-started with current, firsthand knowledge of everything. Accuracy falls from $\approx 1$ to a plateau set by memory decay ($\sim$0.61 at $c=0.05$, $\sim$0.14 at $c=0.5$; left). Conditioned on being wrong, the fast-decay system fails purely by \emph{forgetting} (100\% abstention); the slow-decay system's errors are $\sim$90\% forgetting and $\sim$10\% \emph{confident staleness} --- rising to $\sim$25\% in the early transient --- with the stale share concentrated on the fastest-revising questions. Abstention is insensitive to how fast any fact revises, but highly sensitive to how many facts there are: steady-state P(IDK) climbs from $0.18$ to $0.90$ as the environment grows from $25$ to $400$ questions at fixed budget (right) --- breadth, not speed, silences the population, because every new fact's insertions crowd the others out of retrievable memory. The same regimes appear in the real gpt-4o-mini factor grids (project artifacts): decay ($c: 0.05 \to 1.0$ takes agent IDK $0.35 \to 0.89$), source starvation (environment bandwidth $E: 6 \to 1$ takes system IDK $0 \to 0.29$), environment speed ($\bar\lambda: 0.001 \to 0.1$ takes system accuracy $0.93 \to 0.20$ without moving abstention).
 
