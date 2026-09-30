@@ -32,6 +32,7 @@ SYSTEMS = {  # label -> (color, run glob, toy key prefix)
 SCOPES = {"agg": ("all questions", "-", 2.6)}
 IDK = ("i don't know",)
 MS = [25, 50, 100, 200, 400]
+CHI_STYLES = {0.25: ("-", "o"), 0.5: ("--", "s")}
 plt.rcParams.update({"font.size": 12, "axes.spines.top": False, "axes.spines.right": False,
                      "axes.grid": True, "grid.alpha": 0.25,
                      "axes.titlesize": 15, "axes.labelsize": 14,
@@ -64,7 +65,6 @@ def sm(y, w=3):
 
 
 def main():
-    toy = json.load(open("projects/data/idk_vs_M_tracked.json"))
     fig, axes = plt.subplots(1, 3, figsize=(13.6, 4.4))
     axA, axB, axC = axes
     for label, (col, pat, ckey) in SYSTEMS.items():
@@ -79,15 +79,14 @@ def main():
             ok = wrong > 0.02                      # conditional undefined when nothing is wrong
             axB.plot(ts[ok], idk[ok] / wrong[ok], color=col, lw=lw, ls=ls)
             axB.plot(ts[ok], (wrong[ok] - idk[ok]) / wrong[ok], color=col, lw=lw * 0.7, ls="--")
-            m = np.array([toy[f"{ckey}-{M}-{scope}"][0] for M in MS])
-            s = np.array([toy[f"{ckey}-{M}-{scope}"][1] for M in MS])
-            axC.errorbar(MS, m, yerr=s, color=col, lw=lw, ls=ls, marker="o", ms=4,
-                         capsize=2)
-        # system level: fraction of questions no agent can answer (= epistemic collapse)
-        m = np.array([toy[f"{ckey}-{M}-sys"][0] for M in MS])
-        s = np.array([toy[f"{ckey}-{M}-sys"][1] for M in MS])
-        axC.errorbar(MS, m, yerr=s, color=col, lw=2.2, ls="--", marker="s", ms=5,
-                     markerfacecolor="white", capsize=2)
+    cvm = json.load(open("projects/data/collapse_vs_M.json"))
+    MSC = [25, 35, 50, 70, 100, 140, 200, 280, 400]
+    for label, (col, pat, ckey) in SYSTEMS.items():
+        for chi, (ls, mk) in CHI_STYLES.items():
+            m = np.array([cvm[f"{ckey}-{M}"][f"p_collapse_{chi}"][0] for M in MSC])
+            e = np.array([cvm[f"{ckey}-{M}"][f"p_collapse_{chi}"][1] for M in MSC])
+            axC.errorbar(MSC, m, yerr=e, color=col, lw=2.4, ls=ls, marker=mk, ms=5,
+                         markerfacecolor="white" if mk == "s" else col, capsize=2)
     axA.axhline(1 / 50, color=MUTED, ls=":", lw=1.4, zorder=1)
     axA.text(0.98, 1 / 50 + 0.02, "chance ($1/M$)", transform=axA.get_yaxis_transform(),
              ha="right", fontsize=11, color=MUTED)
@@ -100,16 +99,16 @@ def main():
     hB = [Line2D([], [], color=INK, lw=1.8, label="P(“I don’t know”$\,|\,$wrong)"),
           Line2D([], [], color=INK, lw=1.3, ls="--", label="P(stale$\,|\,$wrong)")]
     axB.legend(handles=hB, loc="center left")
-    axC.set_title("environment size affects forgetting", loc="left")
+    axC.set_title("environment size causes collapse", loc="left")
     axC.set_xscale("log"); axC.set_xticks(MS)
     axC.set_xticklabels([str(M) for M in MS])
     axC.xaxis.set_minor_locator(matplotlib.ticker.NullLocator())
     axC.set_xlabel("questions in the environment ($M$)")
-    axC.set_ylabel("steady-state P(“I don’t know”)")
-    hC = [Line2D([], [], color=INK, lw=2.2, marker="o", ms=4, label="agent"),
-          Line2D([], [], color=INK, lw=2.2, ls="--", marker="s", ms=5,
-                 markerfacecolor="white", label="system (collapse)")]
-    axC.legend(handles=hC, loc="center right", bbox_to_anchor=(1.03, 0.42), handlelength=1.3, handletextpad=0.5)
+    axC.set_ylabel("P($\\chi$-epistemic collapse)")
+    hC = [Line2D([], [], color=INK, lw=2.4, ls=ls, marker=mk, ms=5,
+                 markerfacecolor="white" if mk == "s" else INK, label=f"$\\chi$ = {chi}")
+          for chi, (ls, mk) in CHI_STYLES.items()]
+    axC.legend(handles=hC, loc="upper left")
     for ax in axes:
         ax.set_ylim(-0.03, 1.03)
     fig.tight_layout()

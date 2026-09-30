@@ -37,7 +37,7 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, sim_floor=0.5, k_ctx=3,
         lam_mean=0.01, lam_disp=1.0, frac_static=0.0,
         s_env=0.0, s_ask=0.0, sigma="staleness_aware", peer="uniform", mean_degree=None,
         n_obs_frac=1.0, answer_policy="open", books=False, book_pub=100, book_frac=0.5,
-        book_write_p=0.0, book_write_W=1,
+        book_write_p=0.0, book_write_W=1, book_reground=False,
         T=1000, seed=0, record_every=5, warm_start=False, track=None):
     """sim_floor: cross-question similarity (score floor of off-target entries);
     k_ctx: context size (retrieval depth). Delta = ln(1/sim_floor)/c_dec.
@@ -113,7 +113,7 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, sim_floor=0.5, k_ctx=3,
         n_after = Cnow[:, None] - C[rows, cutoff]      # insertions after the cutoff
         return held & (safe | (n_after < k_ctx))
 
-    out = {k: [] for k in ["t", "idk", "idk_demand", "correct", "stale", "dead_q", "sys_corr"]}
+    out = {k: [] for k in ["t", "idk", "idk_demand", "correct", "stale", "dead_q", "sys_corr", "book_cov"]}
     if track is not None:
         out["track_knows"] = []; out["track_corr"] = []
     for t in range(1, T + 1):
@@ -188,7 +188,9 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, sim_floor=0.5, k_ctx=3,
                 if books and rng.random() < book_frac:
                     if pub_t[q] > NEG:                 # read the last published edition
                         ins[i] += 1                    # the copy inserts (and crowds) like any answer
-                        if pub_t[q] >= new_fo[i, q]:   # a documented record grounds under both policies
+                        # book_reground: a forgotten fact is re-grounded by reading the book even if
+                        # the agent once held newer (now crowded-out) evidence
+                        if pub_t[q] >= new_fo[i, q] or (book_reground and not knows[i, q]):
                             new_ft[i, q] = t; new_fo[i, q] = pub_t[q]; new_fv[i, q] = pub_v[q]
                         if pub_t[q] >= new_t[i, q]:
                             new_t[i, q] = pub_t[q]; new_v[i, q] = pub_v[q]; new_r[i, q] = t
@@ -222,6 +224,7 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, sim_floor=0.5, k_ctx=3,
             out["stale"].append((knows & ~corr).mean())
             out["dead_q"].append(1 - knows.any(axis=0).mean())
             out["sys_corr"].append(corr.any(axis=0).mean())   # >=1 agent answers correctly
+            out["book_cov"].append(float((pub_t > NEG).mean()))
             if track is not None:
                 out["track_knows"].append(knows[:, track].mean(axis=0))
                 out["track_corr"].append(corr[:, track].mean(axis=0))
