@@ -37,7 +37,7 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, sim_floor=0.5, k_ctx=3,
         lam_mean=0.01, lam_disp=1.0, frac_static=0.0,
         s_env=0.0, s_ask=0.0, sigma="staleness_aware", peer="uniform", mean_degree=None,
         n_obs_frac=1.0, answer_policy="open", books=False, book_pub=100, book_frac=0.5,
-        book_write_p=0.0, book_write_W=1, book_reground=False,
+        book_write_p=0.0, book_write_W=1, book_reground=False, obs_sigma="uniform",
         T=1000, seed=0, record_every=5, warm_start=False, track=None):
     """sim_floor: cross-question similarity (score floor of off-target entries);
     k_ctx: context size (retrieval depth). Delta = ln(1/sim_floor)/c_dec.
@@ -153,7 +153,15 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, sim_floor=0.5, k_ctx=3,
         new_t = t_obs.copy(); new_v = val.copy(); new_r = t_recv.copy()
         new_ft = t_fh.copy(); new_fo = o_fh.copy(); new_fv = v_fh.copy()
         for i in np.flatnonzero(k_obs):
-            qs = rng.choice(M, size=k_obs[i], p=p_env)
+            if obs_sigma == "repo":
+                # the repo pipeline's selection rule: never-learned questions weight 1,
+                # learned ones (1 - e^{-c * age since last acquisition})^2
+                learned = t_recv[i] > NEG
+                ag = np.clip(t - t_recv[i], 0, None)
+                w_obs = np.where(learned, (1.0 - np.exp(-c_dec * ag)) ** 2, 1.0) * p_env
+                qs = rng.choice(M, size=k_obs[i], p=w_obs / w_obs.sum())
+            else:
+                qs = rng.choice(M, size=k_obs[i], p=p_env)
             new_t[i, qs] = t; new_r[i, qs] = t; new_v[i, qs] = truth[qs]
             new_ft[i, qs] = t; new_fo[i, qs] = t; new_fv[i, qs] = truth[qs]
             if not (books and book_write_p > 0):       # costly mode: only writes feed the book
@@ -171,6 +179,10 @@ def run(N=20, M=100, B=5, alpha=0.1, c_dec=0.035, sim_floor=0.5, k_ctx=3,
                 # -- a fast world drains the ask budget into re-verification and churns the context
                 ev_age = np.clip(t - (o_fh[i] if fh else t_obs[i]), 0, None)
                 w = np.where(knows[i], (1.0 - np.exp(-lam * ev_age)) ** 2, 1.0) * p_ask
+            elif sigma == "repo":
+                learned = t_recv[i] > NEG
+                ag = np.clip(t - t_recv[i], 0, None)
+                w = np.where(learned, (1.0 - np.exp(-c_dec * ag)) ** 2, 1.0) * p_ask
             elif sigma == "oldest":
                 w = np.where(knows[i], np.clip(age[i], 0, None) / (delta + k_ctx), 2.0) * p_ask + 1e-12
             else:

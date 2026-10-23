@@ -97,7 +97,7 @@ def main():
     axA.set_xlabel("step ($t$)"); axA.set_ylabel("P(correct)")
     axA.legend(handles=[Line2D([], [], color=c, lw=2.6, label=l)
                         for l, (c, _, _) in SYSTEMS.items()], loc="upper right")
-    axB.set_title("forgetting leads to collapse", loc="left")
+    axB.set_title("agents forget; systems collapse", loc="left")
     axB.set_xlabel("step ($t$)"); axB.set_ylabel("P(“I don’t know”)")
     axB.legend(handles=[Line2D([], [], color=INK, lw=2.6, label="agent"),
                         Line2D([], [], color=INK, lw=2.2, ls="--",

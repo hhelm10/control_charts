@@ -121,6 +121,7 @@ class Agent:
     # Forget strategy configuration
     forget_strategy: str = "none"  # "none" or "decay"
     decay_coefficient: float = 0.1  # Exponential decay rate
+    question_selection: str = "memory"  # "memory" (decay-weighted re-asks) or "uniform"
     decay_mode: str = "multiplicative"  # "multiplicative" or "additive"
 
     # Question tracking
@@ -243,6 +244,12 @@ class Agent:
         In 'decay' mode: can re-ask known questions with probability
         that increases as time since learning increases.
         """
+        if self.question_selection == "uniform":
+            # Uniform: any question in play, independent of the agent's memory
+            if not self.questions_in_play:
+                return None
+            return rng.choice(sorted(self.questions_in_play))
+
         if self.forget_strategy == "none":
             # Original behavior: only ask unknown questions
             unknown = list(self.unknown_questions)

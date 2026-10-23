@@ -75,6 +75,91 @@ def renewal_idk(mu, D, B, q_ins, k):
     return float((1 - mu) ** (D + 1) - mu * (1 - mu) ** D * total)
 
 
+_SIM_SURV = None
+
+
+def similarity_survival(n_sample=2000, seed=0):
+    """Empirical survival function F(x) = P(sigma > x) of off-target cosine
+    similarity between NQ questions (normalized embeddings, as in retrieval)."""
+    global _SIM_SURV
+    if _SIM_SURV is None:
+        import os
+        import pandas as pd
+        df = pd.read_parquet(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                          "..", "data", "nq_embedded.parquet"))
+        E = np.stack(df["embedding"].values).astype(np.float64)
+        E /= np.linalg.norm(E, axis=1, keepdims=True)
+        rng = np.random.default_rng(seed)
+        X = E[rng.choice(len(E), size=min(n_sample, len(E)), replace=False)]
+        S = X @ X.T
+        off = np.sort(S[~np.eye(len(X), dtype=bool)])
+        _SIM_SURV = lambda x: 1.0 - np.searchsorted(off, x, side="right") / len(off)
+    return _SIM_SURV
+
+
+def renewal_idk_het(mu, c, B, q_ins, k, surv=None, amax=None):
+    """P(IDK) with heterogeneous similarities.
+
+    An entry inserted when the q-entry is u steps old permanently outranks it iff
+    its similarity exceeds e^{-c u}; each of the B actions in step u inserts such a
+    threat w.p. q_ins * h(u), h(u) = P(sigma > e^{-c u}). The q-entry is visible
+    at age a iff fewer than k threats arrived in steps 1..a (exact DP over the
+    count, truncated at k); the age since last acquisition is Geom(mu).
+    """
+    if surv is None:
+        surv = similarity_survival()
+    if amax is None:
+        amax = int(60 / max(mu, 1e-6)) + 50
+    dist = np.zeros(k); dist[0] = 1.0          # P(count = j), j < k (mass >= k dropped)
+    p_vis = np.empty(amax + 1); p_vis[0] = 1.0
+    for u in range(1, amax + 1):
+        pr = q_ins * surv(math.exp(-c * u))
+        if pr > 0:
+            pmf = stats.binom.pmf(np.arange(k), B, pr)   # threats this step (only < k matter)
+            dist = np.convolve(dist, pmf)[:k]
+        p_vis[u] = dist.sum()
+        if p_vis[u] < 1e-12:
+            p_vis[u + 1:] = 0.0
+            break
+    a = np.arange(amax + 1)
+    w = mu * (1 - mu) ** a
+    return float(np.sum(w * (1 - p_vis)) + (1 - mu) ** (amax + 1))
+
+
+def renewal_idk_targeted(E_obs, M, c, B, q_ins, k, surv=None, amax=None, iters=60):
+    """P(IDK) with heterogeneous similarities AND the pipeline's selection rule:
+    an agent observes q at a rate proportional to w(a) = (1 - e^{-c a})^2, a = age
+    since it last acquired q, normalized over its M questions:
+        hazard(a) = E_obs * w(a) / (M * wbar),  wbar = E_age[w(a)] (self-consistent).
+    The stationary age law of this renewal process is P(a) proportional to
+    prod_{u<a} (1 - hazard(u)).
+    """
+    if surv is None:
+        surv = similarity_survival()
+    if amax is None:
+        amax = int(80 * M / max(E_obs, 1e-6)) + 200
+    a = np.arange(amax + 1)
+    # visibility by age (independent of the observation process)
+    dist = np.zeros(k); dist[0] = 1.0
+    p_vis = np.empty(amax + 1); p_vis[0] = 1.0
+    for u in range(1, amax + 1):
+        pr = q_ins * surv(math.exp(-c * u))
+        if pr > 0:
+            dist = np.convolve(dist, stats.binom.pmf(np.arange(k), B, pr))[:k]
+        p_vis[u] = dist.sum()
+    w = (1 - np.exp(-c * a)) ** 2
+    wbar = 0.5
+    for _ in range(iters):
+        haz = np.clip(E_obs * w / (M * wbar), 0, 1)
+        surv_obs = np.concatenate([[1.0], np.cumprod(1 - haz[:-1])])
+        page = surv_obs / surv_obs.sum()
+        wbar_new = float(np.sum(page * w))
+        if abs(wbar_new - wbar) < 1e-10:
+            break
+        wbar = 0.5 * wbar + 0.5 * max(wbar_new, 1e-9)
+    return float(np.sum(page * (1 - p_vis)))
+
+
 def renewal_idk_sum(mu, D, B, q_ins, k, amax=None):
     """Reference implementation (explicit sum over ages) for checking renewal_idk."""
     if amax is None:
@@ -113,7 +198,7 @@ def chain_pi(N, delta, gain):
 
 def collapse(M, N=10, B=11, alpha=3 / 11, c=0.05, sim_floor=0.5, k=3,
              strategy="none", book_frac=1.0, book_cov=1.0, write_p=0.0, eps=0.0,
-             iters=300):
+             iters=300, het=False, targeted=False, asks="unknown"):
     """Returns dict(agent_idk, pi0, pi) for one question under a mitigation strategy.
 
     Everything is solved self-consistently: the insertion rate q_ins (which sets
@@ -128,15 +213,20 @@ def collapse(M, N=10, B=11, alpha=3 / 11, c=0.05, sim_floor=0.5, k=3,
     p, h = 0.5, 0.5                             # agent IDK; P(an ask is answered)
     for _ in range(iters):
         q_ins = live * (alpha + (1 - alpha) * h)
-        p0 = renewal_idk(mu, D, B, q_ins, k)    # occupancy with observation as the only channel
+        if targeted:
+            p0 = renewal_idk_targeted(alpha * B * live, M, c, B, q_ins, k)
+        elif het:
+            p0 = renewal_idk_het(mu, c, B, q_ins, k)
+        else:
+            p0 = renewal_idk(mu, D, B, q_ins, k)  # occupancy with observation as the only channel
         delta = mu * p0 / (1 - p0)
         if strategy == "none":
             gain = lambda m: mu
         elif strategy == "mimesis":
-            a = K * live / (M * p)
+            a = K * live / (M * p) if asks == "unknown" else K * live / M
             gain = lambda m, a=a: mu + a * m / (N - 1)
         elif strategy == "books":
-            a = book_frac * K * live / (M * p)
+            a = book_frac * K * live / (M * p) if asks == "unknown" else book_frac * K * live / M
             gain = lambda m, a=a: mu + a * book_cov
         else:
             raise ValueError(strategy)
@@ -144,7 +234,10 @@ def collapse(M, N=10, B=11, alpha=3 / 11, c=0.05, sim_floor=0.5, k=3,
         lack = (N - n) / N
         p_new = float(np.sum(pi * lack))
         # an ask is made by a non-holder of q; answered iff the target holds q
-        held_given_lack = float(np.sum(pi * (N - n) * n / (N - 1)) / max(np.sum(pi * (N - n)), 1e-12))
+        if asks == "unknown":     # asks target questions the asker lacks
+            held_given_lack = float(np.sum(pi * (N - n) * n / (N - 1)) / max(np.sum(pi * (N - n)), 1e-12))
+        else:                     # uniform asks: a random peer holds the question w.p. 1 - p
+            held_given_lack = 1.0 - float(np.sum(pi * (N - n) / N))
         if strategy == "books":
             h_new = book_frac * book_cov + (1 - book_frac) * held_given_lack
         else:
@@ -159,7 +252,7 @@ def collapse(M, N=10, B=11, alpha=3 / 11, c=0.05, sim_floor=0.5, k=3,
         agent = agent + (1 - agent) * eps
     else:
         pi0 = float(pi[0])
-    return {"agent_idk": agent, "pi0": pi0, "pi": pi}
+    return {"agent_idk": agent, "pi0": pi0, "pi": pi, "q_ins": q_ins}
 
 
 def book_coverage(M, t, N=10, B=11, alpha=3 / 11, c=0.05, sim_floor=0.5, k=3,
@@ -183,6 +276,63 @@ def book_coverage(M, t, N=10, B=11, alpha=3 / 11, c=0.05, sim_floor=0.5, k=3,
         b = 1 - (1 - b) * math.exp(-rate * (1 - p_u) * dt)
         tt += dt
     return b
+
+
+def visibility_profile(c, B, q_ins, k, amax, surv=None):
+    """P(the q-entry is still retrievable at age a), heterogeneous similarities."""
+    if surv is None:
+        surv = similarity_survival()
+    dist = np.zeros(k); dist[0] = 1.0
+    p_vis = np.zeros(amax + 1); p_vis[0] = 1.0
+    for u in range(1, amax + 1):
+        pr = q_ins * surv(math.exp(-c * u))
+        if pr > 0:
+            dist = np.convolve(dist, stats.binom.pmf(np.arange(k), B, pr))[:k]
+        p_vis[u] = dist.sum()
+        if p_vis[u] < 1e-13:                      # memory certainly gone; rest stays 0
+            break
+    return p_vis
+
+
+def misalignment(M, lam_mean, lam_disp=1.0, N=10, B=11, alpha=3 / 11, c=0.05, k=3,
+                 n_lam=120, asks="unknown"):
+    """No mitigation (firsthand). Returns agent-level P(correct), P(stale),
+    P(IDK) and system-level P(question in collapse), P(question misaligned),
+    averaged over lambda_q ~ lognormal(lam_mean, lam_disp).
+
+    An agent holding q answers with its last observation; age a since that
+    observation ~ Geom(mu); visible w.p. p_vis(a); correct iff q has not been
+    revised in those a steps: (1 - lambda)^a. Agents are independent, so
+        collapse  = P_idk^N
+        misalign  = (1 - P_correct)^N - P_idk^N.
+    """
+    base = collapse(M, N=N, B=B, alpha=alpha, c=c, k=k, het=True, asks=asks)
+    p_idk = base["agent_idk"]
+    q_ins = base.get("q_ins", alpha + (1 - alpha) * (1 - p_idk))
+    mu = 1 - (1 - alpha / M) ** B
+    amax = int(60 / mu) + 50
+    a = np.arange(amax + 1)
+    held = mu * (1 - mu) ** a * visibility_profile(c, B, q_ins, k, amax)   # P(age = a, visible)
+    # lognormal quantiles of lambda_q (mean lam_mean)
+    z = stats.norm.ppf((np.arange(n_lam) + 0.5) / n_lam)
+    lams = lam_mean * np.exp(lam_disp * z - lam_disp ** 2 / 2)
+    lams = np.clip(lams, 0, 1)
+    pc = np.array([np.sum(held * (1 - l) ** a) for l in lams])          # P(correct | lambda)
+    p_hold = held.sum()
+    agent_correct = float(pc.mean())
+    agent_stale = float(p_hold - agent_correct)
+    collapse_q = float(p_idk ** N)
+    # agents' correctness is correlated through the shared time R since q's last
+    # revision: given R, agent i is correct iff it holds evidence of age <= R.
+    # R ~ Geom(lambda), so  P(no agent correct) = E_R[(1 - H(R))^N],  H(r) = sum_{a<=r} held(a)
+    H = np.cumsum(held)
+    L = lams[:, None]
+    pr = L * (1 - L) ** a[None, :]                          # P(R = r | lambda)
+    tail = (1 - lams) ** (amax + 1)                         # R beyond amax: H ~ p_hold
+    nc = np.sum(pr * ((1 - H) ** N)[None, :], axis=1) + tail * (1 - p_hold) ** N
+    misalign_q = float(np.mean(nc) - collapse_q)
+    return {"agent_correct": agent_correct, "agent_stale": agent_stale, "agent_idk": float(1 - p_hold),
+            "collapse": collapse_q, "misalign": misalign_q}
 
 
 def p_chi_collapse(M, pi0, chi):
