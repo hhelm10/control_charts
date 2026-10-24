@@ -1,48 +1,113 @@
-# Epistemic collapse — project layout
+# projects/
 
-Working set for the epistemic-collapse paper (Helivan × Calcifer Computing),
-organized out of `experiments/collapse/`. Run all scripts **from the repo
-root** (e.g. `python projects/scripts/plot_books_costly.py`).
+One self-contained directory per paper or deliverable. Repo-level code
+(`src/controlcharts/` — the agent-network pipeline — and `scripts/`) and heavy
+raw data (repo-level `data/` and `experiments/results/`, gitignored) are shared
+infrastructure; a project directory holds everything that is *specific to the
+deliverable* — the per-artifact scripts, the rendered artifacts, the writing,
+and the small cached result files the artifacts are rendered from.
 
-## artifacts/ — figures
+Current projects:
 
-- `figure1_final.png` — Fig 1: collapse in a real gpt-4o-mini network, 2×4 by factor (real data only).
-- `figure2_final.png` — Fig 2: simulation ≈ real, per-factor calibration (zero fitted parameters).
-- `figure_internal_policy_{overlay,agentlevel}.png` — internal: no-mimesis vs mimesis on shared panels.
-- `figure1_mimesis_books.png`, `figure3_hyperparams_policies.png` — Fig 3/4 candidates (toy; pre-B=11 vocabulary).
-- `fig_books_costly.png` — costly-written books vs environment speed, labeled in expected writes ω = p/W.
-- `fig_books_W.png` — internal: hold p, vary W (freshness dial at constant tax).
-- `fig_books_omega.png` — internal: ω-invariance certification (fixed ω, p varied 4–10×).
-- `figure1_h2h_goodness.png` — head-to-head surrogate vs real at the baseline cell.
+| Project | What it is |
+|---|---|
+| `epistemic_collapse/` | Paper: epistemic collapse and epistemic capacity in multi-agent systems (Helivan × Calcifer Computing). See `epistemic_collapse/README.md`. |
 
-## scripts/
+## Standard project layout
 
-- `toy_v4.py` — the toy platform (crowding, answer policies, books incl. costly writing).
-- `sweep_books_{W,omega}.py`, `plot_books_{costly,W,omega}.py` — books experiments (free compute).
-- `plot_figure1_books.py`, `plot_figure3.py` — toy Fig 3/4 candidates.
-- `fig1_real/` — real-system pipeline: `gen_fig1_configs.py` (run grids), `ecal_probe.py`
-  (measured answering-gate table + m_profile), `ecal_invivo.py` (in-vivo validation),
-  `analyze_fig1.py`, `compare_surrogate.py`, `plot_h2h.py`, `plot_figure1_final.py`,
-  `plot_figure2.py`. Raw run snapshots stay in `experiments/results/` (~16 GB, not moved).
-  LLM runs cost real money — quote and get sign-off before launching.
+```
+projects/<name>/
+  scripts/     one script per artifact + <name>_common.py
+  artifacts/   generated figures/tables under canonical names
+  writing/     paper .tex, references.bib, style files, committed PDF
+  data/        small cached result JSONs that the scripts render from
+```
 
-## data/
+Rules that make this work:
 
-- `books_*_results.json`, `figure3_results.json` — toy sweep outputs.
-- `ecal_table.json`, `m_profile.json` — measured gate P(response | context state) and
-  pool-size → bucket-occupancy profile (inputs to the surrogate via `ECAL_TABLE`).
-- `ecal_invivo_results*.json` — in-vivo gate validation.
-- `configs_fig1v6/` (no-mimesis grid), `configs_fig1v7/` (mimesis grid) — the run configs
-  behind Figures 1–2.
-- `nq_embedded.parquet` (question pool from Natural Questions) and `answer_alphabet.npz`
-  (the verbatim response alphabet with cached embeddings — the lookup table behind
-  the no-encoding embedding) — hosted here so the repo is self-contained.
+- **One script per artifact.** Naming:
+  `<name>_figure{N}_{subtitle}.py`, `<name>_table{N}_{subtitle}.py`,
+  `<name>_appendix{X}_{subtitle}.py`. The script is the single source of
+  truth for its artifact; anyone should be able to regenerate any figure
+  by running its script with no arguments. Shared model code used by several
+  artifacts lives beside them as `<name>_<module>.py`.
+- **`<name>_common.py`** pins the working directory to the repo root (so
+  repo-relative data paths resolve no matter where the script is invoked
+  from) and provides `save_artifact(fig, name)` — which writes both
+  `artifacts/<name>.png` (200 dpi raster preview) and
+  `artifacts/<name>.pdf` (vector, the one the paper includes) — plus
+  `save_text_artifact` for generated `.tex`.
+- **Canonical artifact names, no version suffixes.** Never `_v2`,
+  `_final`, `_new`. Git history is the version control; an updated
+  artifact overwrites the old file in place.
+- **Compute/render separation.** Expensive stages write a JSON cache into
+  the project's `data/`; the figure script's render path reads only that
+  cache and is cheap to re-run (style tweaks never require recompute).
+  The project `data/` caches are committed; raw inputs (run directories,
+  embedding matrices, panels) stay in the repo-level gitignored `data/` and
+  `experiments/results/`.
+- **The paper PDF is committed and built by hook.** `.githooks/pre-commit`
+  (enable once per clone: `git config core.hooksPath .githooks`) syncs
+  `artifacts/*.pdf` and generated `.tex` into `writing/figures/`, rebuilds
+  the paper (pdflatex → bibtex → pdflatex ×2), stages the result, and
+  blocks the commit if LaTeX fails.
+- **Compute etiquette.** One CPU-heavy job at a time; cap BLAS threads
+  (`OPENBLAS_NUM_THREADS=...`) and run under `nice`. API keys live in the
+  repo-level `.env` (never committed, never printed).
 
-## writing/
+## Figure conventions ("Helivan Blues")
 
-- `summary.tex` / `summary.pdf` — two-page summary.
-- `epistemic_collapse_experiment_design.md` — experiment design doc.
-- `README.md` — collaborator handoff (paths inside predate this reorganization).
+The style canon lives in `scripts/hv_style.py` (ported from `hhelm10/dkps`).
+Every plotting script starts with:
 
-Legacy material (toy v1–v3, pilot, factor sweeps, logs, superseded figures) remains in
-`experiments/collapse/`.
+```python
+import hv_style
+hv_style.apply()          # rc params: white bg, muted spines/grid, ink colors
+SZ = hv_style.SIZES       # all font sizes come from here — never hardcode
+```
+
+### Channel grammar
+
+The core idea: **each visual channel encodes exactly one factor, and the
+assignment is fixed across every figure in the paper.** Each project
+declares its assignment in `<name>_common.py` and its README.
+
+1. **Color = method.** One blue at many lightnesses plus two grays, mapped
+   through `hv_style.ROLES` (`baseline_gray`, `baseline_pale`, `comparator`,
+   `generic`, `focus`, `anchor`); the mapping never changes between figures.
+   Violet (`reserve`, `#6d5bd0`) is reserved for one concept per paper, never
+   a method. Color follows the method, never its rank in a particular panel,
+   and default matplotlib palettes are never cycled.
+2. **Linestyle = the paper's declared binary attribute** (e.g. information
+   source). Declared once, in the first figure's caption, and honored
+   everywhere.
+3. **A second swept factor gets its own channel and its own legend.**
+   Marker fill (filled / open), or, where markers are unavailable, a
+   figure-wide solid/dashed pair declared in that figure's legend.
+4. **Orthogonal factors → separate legends.** Never a single legend
+   enumerating the cross product; instead one compact legend per factor,
+   placed together below the panels.
+
+### Layout and annotation
+
+- Panels that invite comparison share fixed y-limits and, where one
+  y-axis serves a row, interior tick labels are dropped.
+- Uncertainty is a ±1 SEM shaded band (`alpha≈.13`), not error bars.
+- Reference values are dotted `hv_style.REFLINE` lines with a small
+  rotated inline label ("chance").
+- Suptitles/labels/ticks/annotations take their sizes from
+  `hv_style.SIZES` (suptitle 21.2 … annot 14.0). These were tuned for
+  print legibility at `\textwidth`; bump the whole dict, not one label.
+- Colormaps: `hv_style.CMAP_BLUE` (sequential, brand blue),
+  `hv_style.CMAP_RESERVE` (violet ramp, reserved concept), and the
+  registered `'helivan_div'` diverging map (blue = below center,
+  Helivan gold = above; center with `TwoSlopeNorm`).
+
+### Output and tables
+
+- Always save through `save_artifact` → canonical `.png` + `.pdf` pair,
+  tight bbox, `pad_inches=0.03`. The paper includes the PDFs.
+- Tables are plain `table`/`tabular` with booktabs — no custom column
+  commands; the caption defines any bold/underline convention.
+- Every number printed in the paper must be reproducible from a
+  committed cache in the project's `data/` by the artifact's script.

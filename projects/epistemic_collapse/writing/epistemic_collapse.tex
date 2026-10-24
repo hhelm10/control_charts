@@ -1,0 +1,151 @@
+\documentclass[10pt]{article}
+
+\usepackage[letterpaper,margin=0.45in,top=0.45in,bottom=0.55in,columnsep=0.15in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
+\usepackage{titlesec}
+\usepackage[font=small,labelfont=bf,skip=4pt]{caption}
+\usepackage{stfloats}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[C]{\footnotesize\thepage}
+\fancyfoot[L]{\footnotesize\itshape Do not distribute without written consent.}
+
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.0ex plus 0.3ex minus 0.2ex}{0.4ex}
+\titlespacing*{\subsection}{0pt}{0.8ex plus 0.3ex minus 0.2ex}{0.3ex}
+\setlength{\parskip}{0pt}
+\linespread{0.95}
+\setlength{\parindent}{1.2em}
+\urlstyle{same}
+\renewcommand{\dbltopfraction}{0.95}
+\renewcommand{\textfraction}{0.05}
+\renewcommand{\dblfloatpagefraction}{0.85}
+\setcounter{dbltopnumber}{3}
+\setlist[itemize]{leftmargin=1.2em,itemsep=1pt,topsep=2pt,parsep=0pt}
+
+\graphicspath{{figures/}}
+
+\title{Epistemic Collapse in Multi-Agent Systems}
+\author{Helivan \quad Calcifer Computing}
+\date{}
+
+\begin{document}
+\makeatletter
+\twocolumn[
+  \begingroup
+    \@maketitle
+    \vspace{-1.75em}
+    \centering
+    {\includegraphics[width=0.99\textwidth]{epistemic_collapse_figure1_capacity}}
+    \captionof{figure}{\textbf{Epistemic collapse and epistemic capacity.}
+    Throughout the paper, color denotes the mitigation strategy and line style the information source (dashed = firsthand only, solid = uses secondhand information); violet denotes epistemic failure $\varphi$, the proportion of questions no agent answers correctly, split into collapse (dark) and misalignment (light).
+    Every system in this figure is firsthand-only, so here solid and dashed instead distinguish fast ($c=0.15$) and slow ($c=0.05$) forgetting.
+    \textit{Left.} All agents start with knowledge of correct answers to all $M$ questions in the environment; failure over time (mean $\pm 1$ SEM over 20 seeds).
+    \textit{Center.} Steady-state failure ($t \geq 200$) vs.\ environment size; lines are theory, markers simulation.
+    \textit{Right.} Epistemic capacity $M^\star(\varphi)$, the largest environment sustainable with failure below $\varphi$, vs.\ environment speed (opacity: $\varphi = 0.1$, $0.5$).}
+    \label{fig:example}
+    \vspace{1.2em}
+  \endgroup
+]
+\makeatother
+
+\section{Motivation}
+Information is being produced and shared more than ever before.
+The landscape is not only larger but faster: short-form content, the 24-hour news cycle, and algorithmic social media feeds shorten the shelf life of what is current.
+For example, the near saturation of public discourse by the Epstein files, abruptly displaced by the conflict in the Middle East and the prospect of war with Iran, is a recent reminder that a story dominates collective attention only until the next one arrives --- so the facts in circulation are revised more quickly than most of their consumers re-check them.
+
+The cost of recirculating generated content is understood at the model level, where systems trained on their own outputs degrade \cite{shumailov2024collapse}.
+It is far less known at the \emph{system} level, where a system of agents that can observe and repeat information can drift away from a changing world's current truth even when every individual behaves reasonably.
+Modeling our information landscape as a multi-agent system in a dynamic environment, our goal is to investigate different strategies for maintaining a robust knowledge system and their sensitivity to various environmental and social parameters.
+Building on our earlier work on monitoring multi-agent systems (\emph{Control Charts for Multi-agent Systems}, arXiv:2605.11135), we study these questions in a real network of LLM agents and in a mechanistically faithful proxy.
+Our investigation is organized around a failure mode we call \emph{epistemic collapse}.
+
+\section{Setting}
+We model the information landscape as a multi-agent system evolving in discrete steps.
+The system has three components: an environment, a population of agents, and a communication topology.
+At each iteration, the information in the environment changes and each agent spends a per-step budget obtaining information --- either via querying the environment directly or by asking a peer it is connected to.
+Particular instantiations (population size, rates, budgets) are reported with each figure.
+
+\textbf{Environment.}
+The environment is defined as a set of $ M $ question and answer pairs and is the system's only source of truth.
+The environment is dynamic in that the correct answer to a question can change with each time step, with a query $ q $'s answer changing at rate $ \lambda_{q} \sim \mathrm{LogNormal}(\bar\lambda, \sigma_{\lambda}) $.
+We study the effect of size of the environment $ M $ and the average speed of the environment $ \bar\lambda $ on epistemic collapse.
+
+\textbf{Agents.} Our system is populated by agents each with a fixed context window of size $ k_{ctx} $.
+Each agent is grounded in that they are instructed to respond to a question with ``I don't know'' if there is not enough evidence in their context to respond confidently.
+The $ k_{ctx} $ most semantically and temporally relevant knowledge, as measured by $\langle q, k \rangle\, e^{-c \cdot \Delta t_{q}}$, is put in an agent's context where $ \Delta t_{q} $ is the elapsed time since receiving the knowledge.
+An agent's knowledge is either \emph{firsthand} --- obtained by consulting the environment directly --- or \emph{secondhand} --- received from a peer, and it retains this provenance as it moves: agents relay answers \emph{verbatim}, so a secondhand copy is an exact copy of some earlier firsthand observation and never drifts by paraphrase. Whether secondhand knowledge counts as evidence enough to ground an answer --- whether agents may repeat what they have merely heard --- is a choice we call the \emph{sharing policy}, and the subject of Sec.~\ref{sec:mimesis}.
+We study the effect of the context size $ k_{ctx} $ and the speed of memory decay $ c $ on system dynamics.
+
+\textbf{Communication.} The flow of information between the agents and the environment is constrained by a communication topology, in which the environment is a distinguished node.
+At a given iteration, each agent has a fixed bandwidth of $B$ actions per step across its incident edges.
+It spends $E$ on obtaining information from the environment and $K = B - E$ obtaining information from the peers it is connected to.
+An exchange on an environment edge (a query) returns the current truth. An exchange on a peer edge redistributes existing information. The reply (possibly an abstention) inserts into the asker's memory as received evidence.
+We study the effect of the average number of peer-to-peer edges in the communication topology, the total bandwidth $ B $, budget allocation strategy $ E / K $, and sharing policy (Sec.~\ref{sec:mimesis}) on system dynamics.
+
+\textbf{Measurement.} Every agent is asked every question in the environment at regular intervals. Each response is exactly one of \emph{correct}, \emph{stale} (an answer, but out of date), or an \emph{abstention} / ``I don't know'', so P(correct) + P(stale) + P(IDK) $= 1$.
+We track these at two levels: \emph{agent level} (the average member) and \emph{system level} (whether \emph{no} member can answer, and whether \emph{some} member is correct).
+
+\textbf{A proxy system.} The main object of our study is a system of LLM agents.
+Even with relatively dated models such as \texttt{gpt-4o-mini}, a single system evolution with a population of 10 agents run for 500 steps costs $\sim\$5$.
+At the scale required to establish trends across environmental, agentic, and topological parameters this cost can be prohibitively expensive.
+To mitigate it, we replace the LLM call with a model of its answering behavior.
+In particular, we estimate the probability of a response in each state by probing an LLM repeatedly and substitute the LLM in the system with a simple random sample from a multinomial distribution.
+The proposed proxy reproduces the statistics of the real system with median deviation 0.01 (Figure \ref{fig:cal}).
+Results below are produced with the proxy system unless otherwise stated.
+
+\begin{figure*}[b]
+  \centering
+  \includegraphics[width=0.98\textwidth]{epistemic_collapse_appendixA_proxy_validation}
+  \caption{\textbf{Validation of the proxy: the measured-gate simulation matches real gpt-4o-mini agent networks, with zero fitted parameters.} Each panel varies one factor over three settings; each point is one setting $\times$ one metric, the median over proxy seeds (horizontal) against the median over real seeds (vertical). Color: no mitigation (gray) and sharing secondhand information (light blue); marker shape: metric. Median $|\Delta| = 0.01$ in every factor.}
+  \label{fig:cal}
+\end{figure*}
+
+\subsection{Epistemic collapse}
+\label{sec:collapse}
+For a given $ q $ we define epistemic collapse as the system state in which every agent responds to $ q $ with ``I don't know'' (i.e., the knowledge of $ q $ has been forgotten by the whole population).
+Collapse is distinct from \emph{staleness}, in which agents still answer but with an out-of-date answer, and is an intended property of a grounded agent.
+For an environment with $ M $ questions, we define $ \chi $-epistemic collapse as the state in which  $ 0 \le \chi\le 1 $ of the $ M $ questions are in epistemic collapse.
+We refer to $ \chi $ as the collapse proportion.
+For a given system configuration --- its population, per-agent budget and its allocation, memory, and sharing strategy --- we define its \emph{epistemic capacity} $ M^\star(\chi) $ as the largest environment the system can sustain, in steady state, with fewer than a proportion $ \chi $ of its questions in epistemic collapse.
+Equivalently, the curve $ \chi(M) $ traced by the steady-state collapse proportion as the environment grows is the system's capacity curve, read at height $ \chi $ (Fig.~\ref{fig:example}, right).
+To compare two configurations that differ in a single strategy $ s $ (e.g., sharing secondhand information, or books), we define the \emph{epistemic efficiency} of $ s $ as $ \Gamma_s(\chi) = M^\star_s(\chi) / M^\star_{\text{none}}(\chi) $: the factor by which $ s $ multiplies the environment the system can sustain before a proportion $ \chi $ of it collapses.
+
+Figure~\ref{fig:example} shows collapse from the best possible start: every agent warm-started with current, firsthand knowledge of everything. Accuracy falls from $\approx 1$ to a plateau set by memory decay ($\sim$0.61 at $c=0.05$, $\sim$0.14 at $c=0.5$; left). Conditioned on being wrong, the fast-decay system fails purely by \emph{forgetting} (100\% abstention); the slow-decay system's errors are $\sim$90\% forgetting and $\sim$10\% \emph{confident staleness} --- rising to $\sim$25\% in the early transient --- with the stale share concentrated on the fastest-revising questions. Abstention is insensitive to how fast any fact revises, but highly sensitive to how many facts there are: steady-state P(IDK) climbs from $0.18$ to $0.90$ as the environment grows from $25$ to $400$ questions at fixed budget (right) --- breadth, not speed, silences the population, because every new fact's insertions crowd the others out of retrievable memory. The same regimes appear in the real gpt-4o-mini factor grids (project artifacts): decay ($c: 0.05 \to 1.0$ takes agent IDK $0.35 \to 0.89$), source starvation (environment bandwidth $E: 6 \to 1$ takes system IDK $0 \to 0.29$), environment speed ($\bar\lambda: 0.001 \to 0.1$ takes system accuracy $0.93 \to 0.20$ without moving abstention).
+
+The rest of this note studies the two natural \emph{mitigations}, both forms of communication: (1) \textbf{sharing secondhand information} (mimesis) --- letting agents repeat answers they received rather than observed; and (2) \textbf{books} --- a shared artifact agents write to and read from. Both run on the validated platform of Sec.~2.
+
+\section{Mitigation 1: sharing secondhand information}
+\label{sec:mimesis}
+The mimesis grid repeats the factor design of Sec.~2 with one change: received answers may ground an answer (still verbatim --- agents repeat, they do not paraphrase). Figure~\ref{fig:policy} overlays the two grids at the agent level.
+
+\textbf{Mimesis raises the floor.} At baseline, agent-level IDK drops $0.68 \to 0.26$ and agent accuracy rises $0.23 \to 0.48$. The communication factor switches from a null lever to a live one: agent accuracy is $0.38$ at degree 2 vs.\ $0.56$ on the mesh, where without mimesis the same sweep is flat.
+
+\textbf{But not the ceiling.} System-level accuracy does not improve --- $0.72$ (no mimesis) vs.\ $0.66$ (mimesis) at baseline --- because the system level asks whether \emph{anyone} holds current evidence, and repetition redistributes evidence without creating it. Mimesis pays at the system level only where redistribution is the binding constraint: in the observation-starved cell ($E=1$) system accuracy rises $0.46 \to 0.64$ and system IDK falls $0.29 \to 0.02$. The regime it cannot rescue is fast forgetting ($c=1.0$: system IDK $0.33$ vs.\ $0.31$) --- copies crowd out as fast as originals.
+
+% TODO(fig:policy): figure to be rebuilt in the canonical layout
+
+\section{Mitigation 2: books}
+Mimesis is peer-to-peer. The second mitigation is a shared artifact: a \emph{book} any agent can read for one action, fed only by deliberate, costly writes --- an agent attempts a write with probability $p$, an attempt consumes its entire step, and a write commits after $W$ attempts, merging the writer's current grounded knowledge (newest evidence wins). Reads ground answers like observations. We sweep the toy platform (10 seeds per point) in a scarce-observation regime where books have room to matter.
+
+\textbf{The book's value is a race between its write rate and the world's revision rate.} The natural unit is the expected write rate $\omega = p/W$ (completed writes per agent per step). The book's accuracy gain over the no-books floor is large when $\bar\lambda \ll \omega$ ($+0.48$ at $\omega = 10/100$ steps, $\bar\lambda = 0.001$) and gone when $\bar\lambda/\omega \gtrsim 1$: every condition lands on the floor by $\bar\lambda = 0.3$ (Fig.~\ref{fig:books}, left). Availability behaves completely differently: P(IDK) is set by $\omega$ ($0.43/0.63/0.83$ for $\omega = 10, 1, 0.2$ per 100 steps, vs.\ $0.93$ without books) and is \emph{flat in $\bar\lambda$} (Fig.~\ref{fig:books}, right). Staleness absorbs the entire loss: the book keeps everyone answering while the answers quietly expire --- a fast world does not silence the library, it turns it into a confident source of expired facts.
+
+\textbf{$\omega$ is the sufficient statistic.} Holding $p$ fixed and varying $W$ (constant budget tax) reproduces the ordering, confirming $W$ is a pure freshness dial with diminishing returns once the book turns over faster than the world. Conversely, holding $\omega$ fixed while varying $p$ by $4$--$10\times$ moves the curves by at most $0.06$ on either metric, against between-$\omega$ gaps up to $0.22$. The residual is monotone in $p$ with the sign a budget tax predicts (high-$p$ writers lose more steps to attempts and deposit slightly staler content, $\approx 0.04$--$0.06$ accuracy at slow speeds). For design purposes: quote a book policy by its expected writes; the attempt probability is a second-order tax.
+
+% TODO(fig:books): figure to be rebuilt in the canonical layout
+
+\paragraph{Takeaway and next steps.} Communication --- secondhand sharing or shared artifacts --- reliably buys \emph{availability}, and buys \emph{accuracy} only while the underlying evidence is younger than the world's revision clock: mimesis is capped by what the population has observed, and a book by how often anyone can afford to write. As the environment speeds up, the failure mode is not silence but confident staleness, which availability metrics cannot see. Next: (1) ``dated editions'' --- books exposing their write time so readers can abstain on stale entries, trading availability back for accuracy; (2) strategy-sensitivity sweeps on the validated platform; (3) the monitoring question: does a control chart on the probe panel see confident staleness coming, given it presents as drift, not shift?
+
+{\footnotesize
+\bibliographystyle{unsrt}
+\bibliography{references}}
+
+\end{document}

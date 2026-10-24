@@ -10,3 +10,10 @@ experiments/results/
 .DS_Store
 /data/
 uv.lock
+
+# LaTeX build intermediates (paper PDFs are committed, built by .githooks/pre-commit)
+projects/*/writing/*.aux
+projects/*/writing/*.log
+projects/*/writing/*.bbl
+projects/*/writing/*.blg
+projects/*/writing/*.out

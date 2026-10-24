@@ -1,0 +1,18 @@
+#!/bin/bash
+# Rebuild epistemic_collapse.pdf whenever paper sources are part of the commit.
+N=epistemic_collapse
+W=projects/$N/writing
+if git diff --cached --name-only | grep -qE "^($W/($N\.tex|references\.bib|.*\.sty|.*\.bst)|projects/$N/artifacts/)"; then
+    echo "[pre-commit] syncing figures/ + rebuilding $W/$N.pdf"
+    mkdir -p $W/figures
+    cp projects/$N/artifacts/${N}_*.pdf $W/figures/ 2>/dev/null
+    cp projects/$N/artifacts/${N}_*.tex $W/figures/ 2>/dev/null
+    git add $W/figures
+    ( cd $W \
+      && pdflatex -interaction=nonstopmode $N.tex > /dev/null \
+      && bibtex $N > /dev/null 2>&1 \
+      && pdflatex -interaction=nonstopmode $N.tex > /dev/null \
+      && pdflatex -interaction=nonstopmode $N.tex > /dev/null ) \
+    || { echo "[pre-commit] LaTeX build FAILED (see $W/$N.log)"; exit 1; }
+    git add $W/$N.pdf
+fi
