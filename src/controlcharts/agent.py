@@ -2,10 +2,23 @@
 
 from dataclasses import dataclass, field
 import asyncio
+import json
+import re
+import logging
 import os
 import numpy as np
 import time
-from openai import OpenAI, AsyncOpenAI, RateLimitError, APIConnectionError
+from openai import OpenAI, AsyncOpenAI, DefaultAsyncHttpxClient, RateLimitError, APIConnectionError, InternalServerError
+import httpx2 as _httpx
+
+# transient API failures worth retrying (APITimeoutError subclasses APIConnectionError)
+TRANSIENT = (RateLimitError, APIConnectionError, InternalServerError)
+RETRIES = 12                     # backoff 1, 2, 4, ... capped at 60 s: ~10 min before giving up
+
+
+def _backoff(attempt: int) -> float:
+    import random
+    return min(60.0, 2.0 ** attempt) * (0.5 + random.random())
 
 from .config import DEFAULT_SYSTEM_PROMPT, DEFAULT_PROMPT_TEMPLATE
 from .database import VectorDatabase, QAPair
@@ -13,7 +26,9 @@ from .database import VectorDatabase, QAPair
 # Tail taming for the per-step barrier: if a completion has not returned after
 # HEDGE_AFTER seconds, fire a duplicate request and take whichever finishes
 # first (deterministic at temperature 0, ~10% duplicate token cost).
-HEDGE_AFTER = float(os.environ.get("LLM_HEDGE_AFTER", "1.5"))
+# hedging (a duplicate request after this many seconds) is off by default: cancelling
+# the loser leaked connections and stalled long runs. LLM_HEDGE_AFTER=1.5 re-enables it.
+HEDGE_AFTER = float(os.environ.get("LLM_HEDGE_AFTER", "0"))
 
 # Measured answering gate for the surrogate (no-LLM) path: P(IDK | present, k, position),
 # estimated from the real agent (ecal_probe.py). Loaded from the path in ECAL_TABLE;
@@ -40,14 +55,48 @@ def _ecal_gate() -> dict[tuple[int, int], float]:
 
 
 # One AsyncOpenAI client per event loop (httpx clients are loop-bound).
-_ASYNC_CLIENTS: dict[int, AsyncOpenAI] = {}
+_ASYNC_CLIENTS: dict[int, tuple[float, AsyncOpenAI]] = {}
+
+# Token usage of completed requests (for cost accounting; written to results.json).
+# Hedged duplicates that get cancelled may still bill but report no usage, so
+# `hedges` counts them separately.
+USAGE = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "hedges": 0}
+
+
+def _count(r) -> None:
+    u = getattr(r, "usage", None)
+    USAGE["calls"] += 1
+    if u is not None:
+        USAGE["prompt_tokens"] += u.prompt_tokens or 0
+        USAGE["completion_tokens"] += u.completion_tokens or 0
+
+
+_H2_LIMITS = _httpx.Limits(max_connections=100, max_keepalive_connections=100, keepalive_expiry=120)
+CLIENT_TTL = 60.0          # seconds before a fresh client replaces the current one
+_RETIRED: list = []        # (retire time, client) awaiting close
 
 
 def _get_async_client() -> AsyncOpenAI:
-    key = id(asyncio.get_running_loop())
-    if key not in _ASYNC_CLIENTS:
-        _ASYNC_CLIENTS[key] = AsyncOpenAI(timeout=30.0, max_retries=3)
-    return _ASYNC_CLIENTS[key]
+    """One client per event loop, rebuilt every CLIENT_TTL seconds. Long runs
+    slowed step after step on a single long-lived client (connections the
+    server had closed piled up in its pool); a fresh pool bounds that.
+    Retired clients are closed once their in-flight requests have finished."""
+    loop = asyncio.get_running_loop()
+    key = id(loop)
+    now = time.time()
+    cur = _ASYNC_CLIENTS.get(key)
+    if cur is None or now - cur[0] > CLIENT_TTL:
+        if cur is not None:
+            _RETIRED.append((now, cur[1]))
+        # HTTP/2 multiplexes requests over a few connections: HTTP/1.1 opened a
+        # TLS connection per request and the pool scan grew with its size,
+        # which made runs CPU-bound (~20 ms CPU per call vs ~2.5 ms).
+        _ASYNC_CLIENTS[key] = (now, AsyncOpenAI(
+            timeout=30.0, max_retries=2,
+            http_client=DefaultAsyncHttpxClient(http2=True, limits=_H2_LIMITS)))
+    while _RETIRED and now - _RETIRED[0][0] > 300:    # > any request's timeout + retries
+        loop.create_task(_RETIRED.pop(0)[1].close())
+    return _ASYNC_CLIENTS[key][1]
 
 
 async def _hedged_chat(model: str, messages: list[dict], hedge_after: float | None = None) -> str:
@@ -57,7 +106,20 @@ async def _hedged_chat(model: str, messages: list[dict], hedge_after: float | No
     async def one() -> str:
         r = await client.chat.completions.create(
             model=model, messages=messages, temperature=0.0, max_tokens=500)
+        _count(r)
         return r.choices[0].message.content.strip()
+
+    if not (hedge_after or HEDGE_AFTER):                     # unhedged: plain retries
+        last: BaseException | None = None
+        for attempt in range(RETRIES + 1):
+            try:
+                return await one()
+            except TRANSIENT as e:
+                last = e
+                logging.getLogger(__name__).warning(f"LLM retry {attempt + 1}: {type(e).__name__}")
+                if attempt < RETRIES:
+                    await asyncio.sleep(_backoff(attempt))
+        raise last
 
     tasks: set[asyncio.Task] = {asyncio.create_task(one())}
     hedged = False
@@ -75,13 +137,15 @@ async def _hedged_chat(model: str, messages: list[dict], hedge_after: float | No
             if not hedged:
                 tasks.add(asyncio.create_task(one()))
                 hedged = True
+                USAGE["hedges"] += 1
         # both attempts raised (e.g. sustained 429): unhedged retries with backoff
-        for attempt in range(5):
+        for attempt in range(RETRIES):
             try:
                 return await one()
-            except (RateLimitError, APIConnectionError):
-                await asyncio.sleep(0.5 * (2 ** attempt))
-        return await one()
+            except TRANSIENT as e:
+                last_exc = e
+                await asyncio.sleep(_backoff(attempt))
+        raise last_exc
     finally:
         for t in tasks:
             if not t.done():
@@ -401,7 +465,26 @@ class Agent:
         exact = next((qa.answer for qa in retrieved
                       if qa.question == question
                       and (self.answer_policy != "firsthand" or qa.firsthand)), None)
-        return ("llm", active_system_prompt, user_prompt, exact)
+        # Optional in-vivo gate log (LLM_DUMP=path.jsonl): per answering event, the
+        # retrieved context's structure (same-question entries with firsthand flag,
+        # revision tag and insertion time) and, after the call, whether it said IDK.
+        rec = None
+        if os.environ.get("LLM_DUMP"):
+            def _rev(a):
+                m = re.search(r" \[rev (\d+)\]$", a)
+                return int(m.group(1)) if m else 0
+            rec = {"t": self.current_iteration, "agent": self.id, "q": question, "k": len(retrieved),
+                   "ctx": [[qa.question == question, bool(qa.firsthand),
+                            _rev(qa.answer) if qa.question == question else None, qa.insertion_time]
+                           for qa in retrieved]}
+        return ("llm", active_system_prompt, user_prompt, exact, rec)
+
+    @staticmethod
+    def _dump(rec, response: str) -> None:
+        if rec is not None:
+            rec["idk"] = Agent._relay(response, "x") == "I don't know"
+            with open(os.environ["LLM_DUMP"], "a") as fh:
+                fh.write(json.dumps(rec) + "\n")
 
     @staticmethod
     def _relay(response: str, exact: str | None) -> str:
@@ -416,29 +499,32 @@ class Agent:
         res = self.prepare_answer(question, question_embedding)
         if res[0] == "final":
             return res[1]
-        _, system_prompt, user_prompt, exact = res
+        _, system_prompt, user_prompt, exact, rec = res
         messages = [{"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}]
-        for attempt in range(5):
+        for attempt in range(RETRIES + 1):
             try:
                 response = self.client.chat.completions.create(
                     model=self.model, messages=messages, temperature=0.0, max_tokens=500)
-                return self._relay(response.choices[0].message.content.strip(), exact)
-            except (RateLimitError, APIConnectionError):
-                time.sleep(0.5 * (2 ** attempt))
-        response = self.client.chat.completions.create(
-            model=self.model, messages=messages, temperature=0.0, max_tokens=500)
-        return self._relay(response.choices[0].message.content.strip(), exact)
+                _count(response)
+                text = response.choices[0].message.content.strip()
+                self._dump(rec, text)
+                return self._relay(text, exact)
+            except TRANSIENT:
+                if attempt == RETRIES:
+                    raise
+                time.sleep(_backoff(attempt))
 
     async def answer_async(self, question: str, question_embedding: np.ndarray) -> str:
         """Answer a question (async path with a hedged request against tail latency)."""
         res = self.prepare_answer(question, question_embedding)
         if res[0] == "final":
             return res[1]
-        _, system_prompt, user_prompt, exact = res
+        _, system_prompt, user_prompt, exact, rec = res
         r = await _hedged_chat(self.model,
                                [{"role": "system", "content": system_prompt},
                                 {"role": "user", "content": user_prompt}])
+        self._dump(rec, r)
         return self._relay(r, exact)
 
     def observe(self, question: str, true_answer: str, question_embedding: np.ndarray) -> None:

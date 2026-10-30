@@ -85,8 +85,10 @@ def similarity_survival(n_sample=2000, seed=0):
     if _SIM_SURV is None:
         import os
         import pandas as pd
+        pool = {"oai": "nq_embedded_oai.parquet", "nomic": "nq_embedded.parquet"}[
+            os.environ.get("EC_POOL", "oai")]               # same pool as the mirror
         df = pd.read_parquet(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                          "..", "data", "nq_embedded.parquet"))
+                                          "..", "data", pool))
         E = np.stack(df["embedding"].values).astype(np.float64)
         E /= np.linalg.norm(E, axis=1, keepdims=True)
         rng = np.random.default_rng(seed)
@@ -294,8 +296,70 @@ def visibility_profile(c, B, q_ins, k, amax, surv=None):
     return p_vis
 
 
+_OTHER_G = {}
+
+
+def n_other_dist(M, B, q_ins, c, k, q_ins_self=None, L=12.0, n=3000):
+    """P(n_other = 0, 1, 2+): how many of the k retrieved entries are about OTHER
+    questions when a holder answers q (refusal depends on it,
+    epistemic_collapse_mirror.refusal_context).
+
+    Two independent streams of entries, ranked by score = similarity x e^{-c age}:
+    copies of q (similarity 1) arrive at rho = B q_ins / M per step, so
+    N_q(x) = rho (-ln x) / c of them score above x; other entries arrive at
+    B q_ins (1 - 1/M) with the empirical off-target similarity, so
+    N_o(x) = B q_ins (1 - 1/M) sum_a P(sigma > x e^{c a}). Scanning x down from 1
+    (grid in ln x), the top k fill with whichever stream's point comes first; the
+    split (copies, others) at k is conditioned on at least one copy of q (the
+    holder's own entry). q_ins_self: insertion rate of q's own copies when it
+    differs from the average (a refused question's asks go unanswered, so it has
+    fewer copies and more other-question context). Within ~0.05 of the mirror's measured split for M >= 100;
+    for M <= 40 it slightly overstates contexts made only of q.
+    """
+    if k <= 1:
+        return np.array([1.0, 0.0, 0.0])
+    key = (round(c, 9), L, n)
+    if key not in _OTHER_G:                       # G(y) = sum_a P(sigma > e^{y + c a}), y = ln x
+        surv = similarity_survival()
+        lx = np.linspace(0.0, -L, n + 1)
+        G = np.empty(n + 1)
+        for i, y in enumerate(lx):
+            t = np.exp(y + c * np.arange(int(-y / c) + 1))
+            G[i] = float(np.sum(surv(t[t <= 1.0])))
+        _OTHER_G[key] = (lx, G)
+    lx, G = _OTHER_G[key]
+    r = B * q_ins
+    r_self = B * (q_ins if q_ins_self is None else q_ins_self)
+    dq = np.full(n, r_self / M * (L / n) / c)
+    do = np.diff(r * (1 - 1 / M) * G)
+    states = [(a, b) for a in range(k) for b in range(k - a)]
+    sid = {st: i for i, st in enumerate(states)}
+    pst = np.zeros(len(states)); pst[sid[(0, 0)]] = 1.0
+    done = np.zeros(k + 1)                        # by number of copies of q in the top k
+    for i in range(n):
+        pq = min(dq[i], 1.0); po = min(do[i], 1.0 - pq)
+        new = pst * (1.0 - pq - po)
+        for (a, b), j in sid.items():
+            if pst[j] == 0.0:
+                continue
+            for (a2, b2), pp in (((a + 1, b), pq), ((a, b + 1), po)):
+                if a2 + b2 == k:
+                    done[a2] += pst[j] * pp
+                else:
+                    new[sid[(a2, b2)]] += pst[j] * pp
+        pst = new
+    for (a, b), j in sid.items():                 # fewer than k entries scored above e^{-L}
+        if a > 0:
+            done[a] += pst[j]
+    d = done[1:] / done[1:].sum()
+    out = np.zeros(3)
+    for a in range(1, k + 1):
+        out[min(k - a, 2)] += d[a - 1]
+    return out
+
+
 def misalignment(M, lam_mean, lam_disp=1.0, N=10, B=11, alpha=3 / 11, c=0.05, k=3,
-                 n_lam=120, asks="unknown"):
+                 n_lam=120, asks="unknown", refusal=True, gate=True):
     """No mitigation (firsthand). Returns agent-level P(correct), P(stale),
     P(IDK) and system-level P(question in collapse), P(question misaligned),
     averaged over lambda_q ~ lognormal(lam_mean, lam_disp).
@@ -305,6 +369,12 @@ def misalignment(M, lam_mean, lam_disp=1.0, N=10, B=11, alpha=3 / 11, c=0.05, k=
     revised in those a steps: (1 - lambda)^a. Agents are independent, so
         collapse  = P_idk^N
         misalign  = (1 - P_correct)^N - P_idk^N.
+    Refusal (measured; epistemic_collapse_mirror.refusal_context): questions of
+    class k3 / k1 (fractions of the pool) are refused by a holder w.p.
+    Phi(a[class, n_other] + sigma z), z ~ N(0, 1) shared by all agents in a run
+    (probit random effect), n_other from n_other_dist; results mix the classes
+    and integrate over z. gate: other questions' holders abstain w.p. the small
+    measured residual (position 1).
     """
     base = collapse(M, N=N, B=B, alpha=alpha, c=c, k=k, het=True, asks=asks)
     p_idk = base["agent_idk"]
@@ -317,21 +387,53 @@ def misalignment(M, lam_mean, lam_disp=1.0, N=10, B=11, alpha=3 / 11, c=0.05, k=
     z = stats.norm.ppf((np.arange(n_lam) + 0.5) / n_lam)
     lams = lam_mean * np.exp(lam_disp * z - lam_disp ** 2 / 2)
     lams = np.clip(lams, 0, 1)
-    pc = np.array([np.sum(held * (1 - l) ** a) for l in lams])          # P(correct | lambda)
-    p_hold = held.sum()
-    agent_correct = float(pc.mean())
-    agent_stale = float(p_hold - agent_correct)
-    collapse_q = float(p_idk ** N)
-    # agents' correctness is correlated through the shared time R since q's last
-    # revision: given R, agent i is correct iff it holds evidence of age <= R.
-    # R ~ Geom(lambda), so  P(no agent correct) = E_R[(1 - H(R))^N],  H(r) = sum_{a<=r} held(a)
     H = np.cumsum(held)
     L = lams[:, None]
     pr = L * (1 - L) ** a[None, :]                          # P(R = r | lambda)
     tail = (1 - lams) ** (amax + 1)                         # R beyond amax: H ~ p_hold
-    nc = np.sum(pr * ((1 - H) ** N)[None, :], axis=1) + tail * (1 - p_hold) ** N
-    misalign_q = float(np.mean(nc) - collapse_q)
-    return {"agent_correct": agent_correct, "agent_stale": agent_stale, "agent_idk": float(1 - p_hold),
+
+    def one(h):
+        """question type whose holders answer w.p. h (1 = normal, 1 - refuse_p = refused)."""
+        pc = np.array([np.sum(h * held * (1 - l) ** a) for l in lams])  # P(correct | lambda)
+        p_hold = h * held.sum()
+        col = float((1 - p_hold) ** N)
+        # agents' correctness is correlated through the shared time R since q's last
+        # revision: given R, agent i is correct iff it holds evidence of age <= R.
+        # R ~ Geom(lambda), so  P(no agent correct) = E_R[(1 - H(R))^N],  H(r) = sum_{a<=r} held(a)
+        nc = np.sum(pr * ((1 - h * H) ** N)[None, :], axis=1) + tail * (1 - p_hold) ** N
+        return np.array([pc.mean(), p_hold - pc.mean(), 1 - p_hold, col, np.mean(nc) - col])
+
+    from epistemic_collapse_mirror import refusal_context
+    RC = refusal_context()
+    gn = RC["gate"].get(k, RC["gate"][3])
+    g = 1.0 - gn[0] if gate else 1.0              # residual IDK of other questions (position 1)
+    if refusal:
+        sg = RC["sigma"]
+        zx, zw = np.polynomial.hermite_e.hermegauss(24)
+        zw = zw / zw.sum()
+        v = 0.0
+        hold = 1.0 - p_idk
+        for cl in (1, 2):
+            f_c = float(np.mean(RC["cls"] == cl))
+            a_c = stats.norm.ppf(np.clip(RC["P"][cl], 1e-9, 1 - 1e-9)) * math.sqrt(1 + sg * sg)
+            # self-consistent: refusal leaves q's asks unanswered -> fewer copies of q
+            # -> more other-question context -> less refusal
+            q_self = q_ins
+            for _ in range(8):
+                pn = n_other_dist(M, B, q_ins, c, k, q_ins_self=q_self)
+                ref_c = float(np.dot(pn, RC["P"][cl]))
+                q_new = alpha + (1 - alpha) * hold * (1 - ref_c)
+                if abs(q_new - q_self) < 1e-4:
+                    break
+                q_self = 0.5 * (q_self + q_new)
+            for z, w in zip(zx, zw):
+                ref = float(np.dot(pn, stats.norm.cdf(a_c + sg * z)))
+                v = v + f_c * w * one(1.0 - ref)
+        v = v + (1 - float(np.mean(RC["cls"] > 0))) * one(g)
+    else:
+        v = one(g)
+    agent_correct, agent_stale, agent_idk, collapse_q, misalign_q = map(float, v)
+    return {"agent_correct": agent_correct, "agent_stale": agent_stale, "agent_idk": agent_idk,
             "collapse": collapse_q, "misalign": misalign_q}
 
 

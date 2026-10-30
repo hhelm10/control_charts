@@ -1,20 +1,27 @@
-"""Figure 1: epistemic failure (collapse + misalignment) and epistemic capacity.
+"""Figure 1: epistemic failure and epistemic capacity, in one example system
+(no mitigation; c = 0.05, lambda = 0.03, E = 3, K = 8, N = 10, k = 3 -- the
+Figure 2 default).
 
-(a) failure over time: warm start, M = 400, lambda = 0.03 (mirror; mean +- 1 SEM).
-(b) steady-state failure vs environment size at lambda = 0.03 (theory lines;
-    mirror markers).
-(c) epistemic capacity M*(phi; lambda) vs environment speed at phi = 0.1, 0.5
-    (theory lines; mirror-derived capacity markers).
+(a) example dynamics: failure over time from a warm start, M = 400 (mirror, 200 seeds;
+    mean +- 1 SEM), split into collapse and misalignment.
+(b) steady-state failure vs environment size (theory lines; mirror markers).
+    Dotted lines at phi = 0.1 and 0.5; where failure crosses them is the
+    epistemic capacity M*(phi).
+(c) epistemic capacity as a function of the failure tolerance phi (theory line;
+    mirror markers = crossings of the mirror curve in (b)).
+Open diamonds in all panels: the real system (gpt-4o-mini agents; 60 seeds in (a), 20 in (b)-(c),
+T = 100, steady state from probes at t >= 50; runs f1real-* from
+data/configs/real_fig1/, cached in data/figure1_real.json).
 
-Channels: violet ramp = the reserved concept, epistemic failure (all failures /
-collapse / misalignment); gray = the method (no mitigation); figure-wide
-solid / dashed pair = fast / slow forgetting (declared in the legend); marker
-fill: filled = fast, open = slow. Opacity in (c) = failure tolerance phi.
+Channels: Set1 failure colors (all / collapse / misalignment); gray = the
+method (no mitigation); solid = firsthand only (the paper's linestyle
+attribute); line = theory, marker = simulation; opacity = phi in (b)-(c).
 
-Compute stages write caches into projects/epistemic_collapse/data/ the first time
-(mirror simulations ~3 min, theory ~1 min); rendering reads only the caches.
+Compute stages cache into data/figure1_trajectories.json, figure1_mirror.json,
+figure1_theory_size.json, figure1_theory_capacity.json (~3 min in all);
+rendering reads only the caches.
 """
-import epistemic_collapse_common as ec  # noqa: F401  (pins cwd, paths, BLAS caps)
+import epistemic_collapse_common as ec
 
 import json
 import os
@@ -31,169 +38,197 @@ import epistemic_collapse_mirror as mirror
 from epistemic_collapse_theory import misalignment
 
 hv_style.apply()
-SZ = hv_style.SIZES
+SZ = ec.SIZES
 
-C_FAST, C_SLOW = 0.15, 0.05
-FORGET = {C_FAST: ('fast forgetting', '-', None), C_SLOW: ('slow forgetting', '--', 'white')}
-LAM_B, M_A = 0.03, 400
-MS = [25, 50, 100, 200, 400]
-LAM_C = [0.003, 0.03, 0.3]
-LAMS_C = np.geomspace(1e-3, 0.3, 28)
-M_TH = np.unique(np.geomspace(15, 1500, 40).astype(int))
-PHIS = ((0.1, 0.45), (0.5, 1.0))          # (tolerance, opacity)
-STEADY_SEEDS, TRAJ_SEEDS = range(300, 316), range(300, 320)
+C, LAM, M_A = 0.05, 0.03, 400
+MS = [10, 16, 25, 40, 63, 100, 160, 250, 400, 630, 1000, 1600, 2500, 4000, 6300, 10000, 16000, 20000]
+M_TH = np.unique(np.geomspace(6, 20000, 65).astype(int))
+PHI_TH = np.linspace(0.02, 0.9, 45)
+PHI_MIR = np.round(np.arange(0.05, 0.851, 0.05), 2)
+PHIS = ((0.1, 0.45), (0.5, 1.0))          # highlighted tolerances (value, opacity)
+STEADY_SEEDS = range(300, 320)     # 20 seeds, as the real runs
+TRAJ_SEEDS = range(300, 500)       # (a) proxy line: 200 seeds, so its noise is negligible next to the real points
 
 F_ALL, F_COL, F_MIS = ec.FAILURE['all failures'], ec.FAILURE['collapse'], ec.FAILURE['misalignment']
-METHOD = ec.style('no mitigation')['color']
+ST = ec.style('no mitigation')
+REAL_MK = dict(marker='D', ms=9, ls='', mfc='white', mew=2.2, elinewidth=1.8, capsize=0, zorder=7)
+LS = ST['ls']
 
-STEADY = f'{ec.DATA}/figure1_mirror.json'
 TRAJ = f'{ec.DATA}/figure1_trajectories.json'
+STEADY = f'{ec.DATA}/figure1_mirror.json'
 TH_SIZE = f'{ec.DATA}/figure1_theory_size.json'
 TH_CAP = f'{ec.DATA}/figure1_theory_capacity.json'
+REAL = f'{ec.DATA}/figure1_real.json'
+REAL_MS = [40, 100, 250, 630, 1600, 4000, 10000]
+REAL_SEEDS = range(800, 820)                   # (b)-(c): 20 seeds per size
+REAL_DYN_SEEDS = range(800, 860)               # (a): 60 seeds (850-859 also logged the in-vivo gate)
+REAL_T0 = 50                                   # steady state = probes at t >= 50 (runs are T = 100)
 
 
 # ---------------------------------------------------------------- compute
-def _traj(job):
-    c, s = job
-    r = mirror.run(M=M_A, c=c, lam=LAM_B, seed=s, T=150, warm_start=True, interval=3,
+def _traj(s):
+    r = mirror.run(M=M_A, c=C, lam=LAM, seed=s, T=60, warm_start=True, interval=1,
                    probe=100, select_rule='uniform')
-    return job, r['t'].tolist(), r['collapse'].tolist(), r['misalign'].tolist()
+    return r['t'].tolist(), r['collapse'].tolist(), r['misalign'].tolist()
 
 
 def _steady(job):
-    c, M, lam, s = job
-    r = mirror.run(M=M, c=c, lam=lam, seed=s, T=300, select_rule='uniform', probe=min(M, 100))
+    M, s = job
+    r = mirror.run(M=M, c=C, lam=LAM, seed=s, T=300, select_rule='uniform', probe=min(M, 100))
     return job, float(np.mean(r['collapse'][-10:])), float(np.mean(r['misalign'][-10:]))
 
 
-def _mstar(job):
-    """capacity M*(phi; lambda): root of total failure(M) = phi, solved on log M."""
+def _size(M):
+    x = misalignment(int(M), LAM, c=C, asks='uniform')
+    return str(int(M)), [x['collapse'], x['misalign']]
+
+
+def _mstar(phi):
     from scipy.optimize import brentq
-    c, lam, phi = job
     f = lambda lm: (lambda x: x['collapse'] + x['misalign'])(
-        misalignment(int(round(np.exp(lm))), lam, c=c, asks='uniform')) - phi
-    try:
-        return json.dumps([c, lam, phi]), float(np.exp(brentq(f, np.log(5), np.log(20000), xtol=0.01)))
-    except ValueError:
-        return json.dumps([c, lam, phi]), float('nan')
+        misalignment(int(round(np.exp(lm))), LAM, c=C, asks='uniform')) - phi
+    if f(np.log(2)) >= 0:          # below the refusal floor: no environment is small enough
+        return f'{phi:.4f}', float('nan')
+    return f'{phi:.4f}', float(np.exp(brentq(f, np.log(2), np.log(50000), xtol=0.005)))
 
 
-def _size(job):
-    c, M = job
-    x = misalignment(int(M), LAM_B, c=c, asks='uniform')
-    return f'{c}-{M}', [x['collapse'], x['misalign']]
+def compute_real():
+    """collect the finished real-system (gpt-4o-mini) runs into one cache."""
+    import epistemic_collapse_real as R
+    out = {'dyn': {}, 'steady': {}}
+    for sd in REAL_DYN_SEEDS:
+        t, col, mis = R.failure_series(R.run_dir(f'f1real-dyn-M{M_A}-s{sd}'))
+        out['dyn']['t'] = t.tolist()
+        out['dyn'].setdefault('runs', []).append([col.tolist(), mis.tolist()])
+    for M in REAL_MS:
+        for sd in REAL_SEEDS:
+            t, col, mis = R.failure_series(R.run_dir(f'f1real-ss-M{M}-s{sd}'))
+            k = t >= REAL_T0
+            out['steady'].setdefault(str(M), []).append([float(col[k].mean()), float(mis[k].mean())])
+    json.dump(out, open(REAL, 'w'), indent=1)
 
 
 def compute():
+    if not os.path.exists(REAL):
+        compute_real()
     with ProcessPoolExecutor(max_workers=max(1, os.cpu_count() - 2)) as ex:
         if not os.path.exists(TRAJ):
-            out = {}
-            for (c, s), t, col, mis in ex.map(_traj, [(c, s) for c in FORGET for s in TRAJ_SEEDS]):
-                d = out.setdefault(str(c), {'t': t, 'col': [], 'mis': []})
-                d['col'].append(col); d['mis'].append(mis)
-            res = {}
-            for c, d in out.items():
-                col, mis = np.array(d['col']), np.array(d['mis'])
-                n = np.sqrt(len(col))
-                res[c] = {'t': d['t'], 'col': col.mean(0).tolist(), 'mis': mis.mean(0).tolist(),
-                          'tot_sem': ((col + mis).std(0) / n).tolist(),
-                          'col_sem': (col.std(0) / n).tolist(), 'mis_sem': (mis.std(0) / n).tolist()}
-            json.dump(res, open(TRAJ, 'w'), indent=1)
+            runs = list(ex.map(_traj, TRAJ_SEEDS))
+            t = runs[0][0]
+            col, mis = np.array([r[1] for r in runs]), np.array([r[2] for r in runs])
+            n = np.sqrt(len(runs))
+            json.dump({'t': t, 'col': col.mean(0).tolist(), 'mis': mis.mean(0).tolist(),
+                       'tot_sem': ((col + mis).std(0) / n).tolist(),
+                       'col_sem': (col.std(0) / n).tolist(), 'mis_sem': (mis.std(0) / n).tolist()},
+                      open(TRAJ, 'w'), indent=1)
         if not os.path.exists(STEADY):
             st = {}
-            for (c, M, lam, s), col, mis in ex.map(_steady, [
-                    (c, M, lam, s) for c in FORGET for M in MS
-                    for lam in sorted(set(LAM_C + [LAM_B])) for s in STEADY_SEEDS]):
-                st.setdefault(f'{c}-{M}-{lam}', []).append((col, mis))
-            json.dump({'steady': {k: np.mean(v, 0).tolist() for k, v in st.items()}},
-                      open(STEADY, 'w'), indent=1)
+            jobs = sorted([(M, s) for M in MS for s in STEADY_SEEDS], key=lambda j: -j[0])
+            for (M, s), col, mis in ex.map(_steady, jobs, chunksize=1):
+                st.setdefault(str(M), []).append([col, mis])
+            json.dump(st, open(STEADY, 'w'), indent=1)
         if not os.path.exists(TH_SIZE):
-            json.dump(dict(ex.map(_size, [(c, int(M)) for c in FORGET for M in M_TH])),
-                      open(TH_SIZE, 'w'), indent=1)
+            json.dump(dict(ex.map(_size, M_TH)), open(TH_SIZE, 'w'), indent=1)
         if not os.path.exists(TH_CAP):
-            json.dump(dict(ex.map(_mstar, [(c, float(l), phi) for c in FORGET for l in LAMS_C
-                                           for phi in (0.1, 0.25, 0.5)])), open(TH_CAP, 'w'))
+            json.dump(dict(ex.map(_mstar, [float(p) for p in PHI_TH] + [p for p, _ in PHIS])),
+                      open(TH_CAP, 'w'), indent=1)
 
 
 # ---------------------------------------------------------------- render
+def crossing(y, phi, grid):
+    """log-interpolated environment size where an increasing failure curve first reaches phi."""
+    y = np.asarray(y)
+    k = np.flatnonzero((y[:-1] < phi) & (y[1:] >= phi))
+    if y[0] >= phi or not len(k):
+        return None
+    k = k[0]
+    return float(np.exp(np.interp(phi, [y[k], y[k + 1]], np.log([grid[k], grid[k + 1]]))))
+
+
 def render():
     traj = json.load(open(TRAJ))
-    steady = json.load(open(STEADY))['steady']
+    steady = {int(M): np.array(v) for M, v in json.load(open(STEADY)).items()}
     size = json.load(open(TH_SIZE))
-    cap = {tuple(json.loads(k)): v for k, v in json.load(open(TH_CAP)).items()}
+    cap = json.load(open(TH_CAP))
+    mir_tot = np.array([steady[M].sum(1).mean() for M in MS])
+    real = json.load(open(REAL))
+    rdyn = np.array(real['dyn']['runs'])                       # seeds x {col, mis} x t
+    rt = np.array(real['dyn']['t'])
+    rst = {int(M): np.array(v) for M, v in real['steady'].items()}
+    real_tot = np.array([rst[M].sum(1).mean() for M in REAL_MS])
+    real_sem = np.array([rst[M].sum(1).std(ddof=1) / np.sqrt(len(rst[M])) for M in REAL_MS])
 
-    fig, (axA, axB, axC) = plt.subplots(1, 3, figsize=(21, 6.4))
+    fig, (axA, axB, axC) = plt.subplots(1, 3, figsize=(21, 6.6))
 
-    # (a) failure over time
-    for c, (_, ls, _) in FORGET.items():
-        d = traj[str(c)]
-        t = np.array(d['t']); col = np.array(d['col']); mis = np.array(d['mis'])
-        for y, sem, colr, lw in ((col + mis, d['tot_sem'], F_ALL, 3.6), (col, d['col_sem'], F_COL, 2.6),
-                                 (mis, d['mis_sem'], F_MIS, 2.6)):
-            axA.plot(t, y, color=colr, lw=lw, ls=ls)
-            axA.fill_between(t, y - np.array(sem), y + np.array(sem), color=colr, alpha=0.13, lw=0)
-    axA.set_ylim(-0.03, 1.03)
+    # (a) example dynamics
+    t = np.array(traj['t']); col = np.array(traj['col']); mis = np.array(traj['mis'])
+    for y, sem, colr, lw in ((col + mis, traj['tot_sem'], F_ALL, 5.0), (col, traj['col_sem'], F_COL, 4.2),
+                             (mis, traj['mis_sem'], F_MIS, 4.2)):
+        axA.plot(t, y, color=colr, lw=lw, ls=LS)
+        axA.fill_between(t, y - np.array(sem), y + np.array(sem), color=colr, alpha=0.13, lw=0)
+    nr = np.sqrt(len(rdyn))
+    for y, colr in ((rdyn.sum(1), F_ALL), (rdyn[:, 0], F_COL), (rdyn[:, 1], F_MIS)):
+        axA.errorbar(rt, y.mean(0), yerr=y.std(0, ddof=1) / nr, color=colr, **REAL_MK)
+    axA.set_xlim(0, 57); axA.set_ylim(-0.03, 1.03)
     axA.set_xlabel('step ($t$)', fontsize=SZ['label'])
-    axA.set_ylabel('failure proportion $\\varphi$', fontsize=SZ['label'])
-    axA.set_title(f'failure over time ($M$ = {M_A}, $\\bar\\lambda$ = {LAM_B})',
-                  loc='left', fontsize=SZ['subtitle'])
+    axA.set_ylabel('failure proportion', fontsize=SZ['label'])
+    axA.set_title(f'(a) example dynamics ($M$ = {M_A})', loc='left', fontsize=SZ['subtitle'])
 
-    # (b) steady-state failure vs environment size
-    for c, (_, ls, mfc) in FORGET.items():
-        th = np.array([size[f'{c}-{int(M)}'] for M in M_TH])
-        axB.plot(M_TH, th.sum(1), color=F_ALL, lw=3.6, ls=ls)
-        axB.plot(M_TH, th[:, 0], color=F_COL, lw=2.6, ls=ls)
-        axB.plot(M_TH, th[:, 1], color=F_MIS, lw=2.6, ls=ls)
-        for M in MS:
-            col, mis = steady[f'{c}-{M}-{LAM_B}']
-            axB.plot([M], [col + mis], marker='o', ms=9, ls='', markerfacecolor=mfc or F_ALL,
-                     markeredgecolor=F_ALL, markeredgewidth=1.6, zorder=5)
-    axB.set_xscale('log'); axB.set_ylim(-0.03, 1.03)
+    # (b) failure vs environment size; capacity = where failure crosses phi
+    th = np.array([size[str(int(M))] for M in M_TH])
+    axB.plot(M_TH, th.sum(1), color=F_ALL, lw=5.0, ls=LS)
+    axB.plot(M_TH, th[:, 0], color=F_COL, lw=4.2, ls=LS)
+    axB.plot(M_TH, th[:, 1], color=F_MIS, lw=4.2, ls=LS)
+    axB.plot(MS, mir_tot, marker='o', ms=9, ls='', color=F_ALL, zorder=5)
+    axB.errorbar(REAL_MS, real_tot, yerr=real_sem, color=F_ALL, **REAL_MK)
+    for phi, al in PHIS:
+        m = cap[f'{phi:.4f}']
+        axB.axhline(phi, color=hv_style.REFLINE, ls=':', lw=2.0, zorder=0)
+        axB.plot([m, m], [-0.03, phi], color=ST['color'], ls=':', lw=2.2, alpha=al, zorder=1)
+        axB.plot([m], [phi], marker='o', ms=13, ls='', color=ST['color'], alpha=al, zorder=6)
+    axB.set_xscale('log'); axB.set_ylim(-0.03, 1.03); axB.set_xlim(M_TH[0], M_TH[-1])
+    axB.tick_params(labelleft=False)                     # (a) and (b) share the failure axis
     axB.set_xlabel('environment size ($M$)', fontsize=SZ['label'])
-    axB.set_ylabel('failure proportion $\\varphi$', fontsize=SZ['label'])
-    axB.set_title(f'failure vs. size ($\\bar\\lambda$ = {LAM_B}, $t \\geq 200$)',
-                  loc='left', fontsize=SZ['subtitle'])
+    axB.set_title('(b) failure vs. size', loc='left', fontsize=SZ['subtitle'])
 
-    # (c) epistemic capacity vs environment speed (method color, opacity = phi)
-    for c, (_, ls, mfc) in FORGET.items():
-        for phi, al in PHIS:
-            axC.plot(LAMS_C, [cap[(c, float(l), phi)] for l in LAMS_C], color=METHOD,
-                     lw=3.2, ls=ls, alpha=al)
-            for lam in LAM_C:                                  # mirror-derived capacity
-                ph = np.array([sum(steady[f'{c}-{M}-{lam}']) for M in MS])
-                k = np.flatnonzero((ph[:-1] < phi) & (ph[1:] >= phi))
-                if len(k):
-                    k = k[0]
-                    lm = np.interp(phi, [ph[k], ph[k + 1]], np.log([MS[k], MS[k + 1]]))
-                    axC.plot([lam], [np.exp(lm)], marker='o', ms=9, ls='', alpha=al,
-                             markerfacecolor=mfc or METHOD, markeredgecolor=METHOD,
-                             markeredgewidth=1.6, zorder=6)
-    axC.set_xscale('log'); axC.set_yscale('log')
-    axC.set_yticks([30, 100, 300, 1000]); axC.set_yticklabels(['30', '100', '300', '1000'])
+    # (c) epistemic capacity as a function of the failure tolerance
+    axC.plot(PHI_TH, [cap[f'{p:.4f}'] for p in PHI_TH], color=ST['color'], ls=LS, lw=ST['lw'] + 1.8)
+    pts = [(p, crossing(mir_tot, p, MS)) for p in PHI_MIR]
+    pts = [(p, m) for p, m in pts if m]
+    axC.plot([p for p, _ in pts], [m for _, m in pts], marker='o', ms=9, ls='', color=ST['color'], zorder=5)
+    rpts = [(p, crossing(real_tot, p, REAL_MS)) for p in PHI_MIR]
+    rpts = [(p, m) for p, m in rpts if m]
+    axC.errorbar([p for p, _ in rpts], [m for _, m in rpts], color=ST['color'], **REAL_MK)
+    for phi, al in PHIS:
+        axC.plot([phi], [cap[f'{phi:.4f}']], marker='o', ms=13, ls='', color=ST['color'], alpha=al,
+                 markeredgecolor='white', markeredgewidth=1.5, zorder=6)
+    axC.set_yscale('log')
+    axC.set_yticks([30, 100, 300, 1000, 3000, 10000, 30000]); axC.set_yticklabels(['30', '100', '300', '1k', '3k', '10k', '30k'])
+    axC.set_ylim(20, 40000)
     axC.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
-    axC.set_xlabel('environment speed ($\\bar\\lambda$)', fontsize=SZ['label'])
+    axC.set_xlim(0, 0.92)
+    axC.set_xlabel('failure tolerance ($\\varphi$)', fontsize=SZ['label'])
     axC.set_ylabel('epistemic capacity $M^\\star(\\varphi)$', fontsize=SZ['label'])
-    axC.set_title('epistemic capacity (no mitigation)', loc='left', fontsize=SZ['subtitle'])
-    axC.legend(handles=[Line2D([], [], color=METHOD, lw=3.2, alpha=al, label=f'$\\varphi$ = {phi}')
-                        for phi, al in PHIS[::-1]], loc='upper right', fontsize=SZ['legend'])
+    axC.set_title('(c) epistemic capacity', loc='left', fontsize=SZ['subtitle'])
 
     for ax in (axA, axB, axC):
         ax.tick_params(labelsize=SZ['tick'])
-    fig.tight_layout(w_pad=2.4, rect=(0, 0.12, 1, 1))
+    fig.subplots_adjust(left=0.055, right=0.995, bottom=0.33, top=0.92, wspace=0.18)
+    p = axC.get_position(); axC.set_position([p.x0 + 0.045, p.y0, p.width - 0.045, p.height])
 
-    # orthogonal factors -> separate legends, placed together below the panels
-    leg_fail = fig.legend(handles=[Line2D([], [], color=F_ALL, lw=3.6, label='all failures'),
-                                   Line2D([], [], color=F_COL, lw=3.0, label='collapse'),
-                                   Line2D([], [], color=F_MIS, lw=3.0, label='misalignment')],
-                          loc='lower center', ncol=3, bbox_to_anchor=(0.31, 0.0),
-                          fontsize=SZ['legend'], handlelength=2.2, columnspacing=1.4)
-    fig.add_artist(leg_fail)
-    fig.legend(handles=[Line2D([], [], color=hv_style.INK, lw=3.0, ls=ls, marker='o', ms=9,
-                               markerfacecolor=mfc or hv_style.INK, markeredgecolor=hv_style.INK,
-                               label=f'{name} ($c$ = {c})')
-                        for c, (name, ls, mfc) in FORGET.items()],
-               loc='lower center', ncol=2, bbox_to_anchor=(0.72, 0.0),
-               fontsize=SZ['legend'], handlelength=2.6, columnspacing=1.4)
+    # orthogonal factors -> separate legends below the panels
+    leg = fig.legend(handles=[Line2D([], [], color=F_ALL, lw=5.0, label='all'),
+                              Line2D([], [], color=F_COL, lw=4.4, label='collapse'),
+                              Line2D([], [], color=F_MIS, lw=4.4, label='misalignment')],
+                     loc='lower center', ncol=3, bbox_to_anchor=(0.31, 0.0), fontsize=SZ['legend'],
+                     handlelength=2.2, columnspacing=1.4, title='failure type', title_fontsize=SZ['legend'])
+    fig.add_artist(leg)
+    fig.legend(handles=[Line2D([], [], color=hv_style.INK, ls=LS, lw=4.4, label='theory'),
+                        Line2D([], [], color=hv_style.INK, ls='', marker='o', ms=9, label='proxy'),
+                        Line2D([], [], color=hv_style.INK, ls='', marker='D', ms=9, mfc='white',
+                               mew=2.2, label='real (gpt-4o-mini)')],
+               loc='lower center', ncol=3, bbox_to_anchor=(0.74, 0.0), fontsize=SZ['legend'],
+               handlelength=2.6, columnspacing=1.6, title='source', title_fontsize=SZ['legend'])
     ec.save_artifact(fig, 'epistemic_collapse_figure1_capacity')
 
 

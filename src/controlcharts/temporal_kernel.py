@@ -37,8 +37,10 @@ class TemporalKernelHook:
         max_workers: int = 200,
         temporal_questions: list[str] = None,  # Temporal questions to always include
         temporal_values: dict[str, int] = None,  # Shared dict: question -> current value
+        start: int = 0,
     ):
         self.interval = interval
+        self.start = start
         self.sample_size = sample_size
         self.questions_in_play = questions_in_play
         self.question_embeddings = question_embeddings
@@ -203,7 +205,7 @@ class TemporalKernelHook:
     def __call__(self, step: int, agents: list["Agent"], network: "Network") -> None:
         """Execute hook if it's time to fire. Collects responses but defers embedding."""
         # Check if we should fire this iteration
-        if step % self.interval != 0:
+        if step % self.interval != 0 or step < self.start:
             return
 
         logger.info(f"Temporal kernel hook firing at step {step}")

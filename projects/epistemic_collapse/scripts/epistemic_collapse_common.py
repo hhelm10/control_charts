@@ -14,11 +14,14 @@ Channel grammar (fixed across every figure in this paper):
                 books                -> focus
                 mimesis + books      -> anchor        (reserved for the combination)
   LINESTYLE = information source (declared in the Fig. 1 caption):
-                dashed = firsthand only (agents answer only from what they observed)
-                solid  = uses secondhand information (peers' answers or books)
-  VIOLET    = the reserved concept: epistemic failure phi. Its components use the
-              violet ramp: all failures (#6d5bd0), collapse (#43307e, dark),
-              misalignment (#a795e3, light).
+                solid  = firsthand only (agents answer only from what they observed)
+                dashed = uses secondhand information (peers' answers or books)
+              (overrides the hv_style role linestyles, so the opening figures,
+              which are all firsthand, use solid lines)
+  FAILURE   = project exception to the canon (per HH, 2026-10-24): failure
+              components use matplotlib Set1 so that they "add" visually --
+              collapse red (#e41a1c) + misalignment blue (#377eb8) = all
+              failures purple (#984ea3).
   A second swept factor (e.g. forgetting speed) gets marker fill or a
   figure-wide solid/dashed pair declared in that figure's legend.
 """
@@ -41,6 +44,10 @@ ART = 'projects/epistemic_collapse/artifacts'
 
 import hv_style  # noqa: E402
 
+# font sizes: the whole hv_style.SIZES dict scaled for this paper (never one label)
+FONT_SCALE = 1.25
+SIZES = {k: v * FONT_SCALE for k, v in hv_style.SIZES.items()}
+
 # method -> hv_style role (color + linestyle + width)
 METHODS = {
     'no mitigation': 'baseline_gray',
@@ -49,17 +56,26 @@ METHODS = {
     'mimesis + books': 'anchor',
 }
 
-# the reserved concept (epistemic failure) and its components
+# epistemic failure and its components (Set1; project exception, see docstring)
 FAILURE = {
-    'all failures': '#6d5bd0',
-    'collapse': '#43307e',
-    'misalignment': '#a795e3',
+    'all failures': '#984ea3',   # Set1 purple
+    'collapse': '#e41a1c',       # Set1 red
+    'misalignment': '#377eb8',   # Set1 blue
+}
+
+
+# linestyle = information source: solid = firsthand only, dashed = secondhand
+LINESTYLE = {
+    'no mitigation': '-',
+    'sharing secondhand': '--',
+    'books': '--',
+    'mimesis + books': '--',
 }
 
 
 def style(method):
     """matplotlib kwargs (color, ls, lw) for a method."""
-    return dict(hv_style.ROLES[METHODS[method]])
+    return {**hv_style.ROLES[METHODS[method]], 'ls': LINESTYLE[method]}
 
 
 def save_artifact(fig, name, dpi=200, pad=0.03, facecolor=None):

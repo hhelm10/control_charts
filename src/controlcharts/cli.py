@@ -18,6 +18,9 @@ import matplotlib.pyplot as plt
 from .config import Config, DEFAULT_SYSTEM_PROMPT, DEFAULT_PROMPT_TEMPLATE
 from .database import VectorDatabase, QAPair, load_embeddings_cache
 from .agent import Agent
+from . import agent as _agent_mod
+import faulthandler as _fh, signal as _sig
+_fh.register(_sig.SIGUSR1, all_threads=True)   # kill -USR1 <pid> dumps stacks to stderr
 from .network import Network
 from .simulation import create_simulation
 from .hooks import LoggingHook, CompositeHook
@@ -28,7 +31,7 @@ from .temporal_questions import TEMPORAL_QUESTIONS, get_temporal_answer
 console = Console()
 logger = logging.getLogger(__name__)
 
-DEFAULT_DATA_PATH = Path(__file__).parent.parent.parent.parent / "data" / "nq_embedded.parquet"
+DEFAULT_DATA_PATH = Path(__file__).resolve().parents[2] / "projects" / "epistemic_collapse" / "data" / "nq_embedded.parquet"
 
 
 def plot_knowledge(hook_history: list[dict], output_path: Path, experiment_name: str) -> None:
@@ -335,6 +338,7 @@ def run(
             seed=config.simulation.seed,
             temporal_questions=temporal_questions_in_play,  # Pass temporal questions
             temporal_values=temporal_values,  # Shared dict for tracking current values
+            start=config.simulation.temporal_kernel.start,
         )
         hooks.append(temporal_kernel_hook)
         if n_temporal > 0:
@@ -434,7 +438,8 @@ def run(
         "run_directory": str(run_dir),
         "results": results,
         "final_states": [agent.get_state() for agent in agents_list],
-        "hook_history": logging_hook.history
+        "hook_history": logging_hook.history,
+        "llm_usage": dict(_agent_mod.USAGE),
     }
 
     with open(output_path, "w") as f:

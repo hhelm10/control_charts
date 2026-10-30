@@ -28,7 +28,7 @@ from matplotlib.lines import Line2D
 import hv_style
 
 hv_style.apply()
-SZ = hv_style.SIZES
+SZ = ec.SIZES
 
 CACHE = f'{ec.DATA}/appendixA_proxy_validation.json'
 GRIDS = {'f1v6': 'no mitigation', 'f1v7': 'sharing secondhand'}
@@ -74,7 +74,7 @@ def compute():
 # ---------------------------------------------------------------- render
 def render():
     data = json.load(open(CACHE))
-    fig, axes = plt.subplots(1, 4, figsize=(22, 6.4), sharey=True)
+    fig, axes = plt.subplots(1, 4, figsize=(22, 7.0), sharey=True)
     for ax, (fac, cells) in zip(axes, FACTORS.items()):
         devs = []
         for grid, method in GRIDS.items():
@@ -95,14 +95,14 @@ def render():
         ax.text(0.97, 0.03, f'median $|\\Delta|$ = {np.median(devs):.2f}', transform=ax.transAxes,
                 ha='right', fontsize=SZ['annot'], color=hv_style.INK)
     axes[0].set_ylabel('real (gpt-4o-mini)', fontsize=SZ['label'])
-    fig.tight_layout(w_pad=1.6, rect=(0, 0.12, 1, 1))
+    fig.tight_layout(w_pad=1.6, rect=(0, 0.13, 1, 1))
     leg = fig.legend(handles=[Line2D([], [], color=ec.style(m)['color'], marker='o', ls='', ms=11,
                                      label=m) for m in GRIDS.values()],
-                     loc='lower center', ncol=2, bbox_to_anchor=(0.3, 0.0), fontsize=SZ['legend'])
+                     loc='lower left', ncol=2, bbox_to_anchor=(0.04, 0.0), fontsize=SZ['legend'])
     fig.add_artist(leg)
     fig.legend(handles=[Line2D([], [], color=hv_style.INK_MUTE, marker=mk, ls='', ms=11, label=n)
                         for n, (_, mk) in METRICS.items()],
-               loc='lower center', ncol=4, bbox_to_anchor=(0.7, 0.0), fontsize=SZ['legend'])
+               loc='lower right', ncol=4, bbox_to_anchor=(0.99, 0.0), fontsize=SZ['legend'])
     ec.save_artifact(fig, 'epistemic_collapse_appendixA_proxy_validation')
 
 

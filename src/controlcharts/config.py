@@ -68,6 +68,7 @@ class TemporalKernelConfig(BaseModel):
     enabled: bool = Field(default=False, description="Enable temporal kernel hook")
     interval: int = Field(default=10, description="Fire every k iterations")
     sample_size: int = Field(default=10, description="Number of questions to sample per snapshot (non-temporal)")
+    start: int = Field(default=0, description="First step at which the hook may fire (earlier probes are skipped)")
     n_nontemporal_sample: int = Field(default=10, description="Number of non-temporal questions to sample (all temporal questions are always included)")
 
 
