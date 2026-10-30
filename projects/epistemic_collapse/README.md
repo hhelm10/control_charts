@@ -12,7 +12,7 @@ Paper: epistemic collapse and epistemic capacity in multi-agent systems
 | Figure 3 — relative capacity Γ of mimesis across the Figure 2 parameters (simulation) | `epistemic_collapse_figure3_mimesis.py` | `figure3_mirror.json` |
 | Figure 4 — relative capacity Γ of books (simulation) | `epistemic_collapse_figure4_books.py` | `figure4_mirror.json` |
 | Matched validation — proxy replays each real run on its own question set (Figs 1–2) | `epistemic_collapse_matched_validation.py` | `figure2_proxy_matched.json`, `figure1_proxy_matched_ss.json` |
-| Appendix A — proxy reproduces real gpt-4o-mini networks | `epistemic_collapse_appendixA_proxy_validation.py` | `appendixA_proxy_validation.json` |
+| Appendix A — proxy vs real gpt-4o-mini on four metrics, all 790 Fig 1–2 runs (matched) | `epistemic_collapse_appendixA_proxy_validation.py` | reads the matched-validation caches |
 
 Regenerate any artifact from the repo root (or anywhere):
 
@@ -79,7 +79,7 @@ recompute); otherwise it only renders.
 - `ecal_table.json`, `m_profile.json` — measured answering gate.
 - `validation_three_way.json` — proxy vs. mirror vs. theory (uniform selection).
 - `mimesis_scan_mirror.json` — mimesis vs. none scan (Figure 3 design input).
-- `configs/` — run configs behind Appendix A (`real_grid_firsthand`,
+- `configs/` — run configs of the earlier surrogate validation (`real_grid_firsthand`,
   `real_grid_mimesis`), the three-way validation (`validation_uniform`), the
   real Figure 1 and 2 runs (`real_fig1`, `real_fig2`) and the logged k = 1
   runs (`real_gate`).

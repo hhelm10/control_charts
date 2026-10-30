@@ -148,7 +148,7 @@ def gate_mean(k=3):
 def run(M=50, N=10, E=3, K=8, k=3, c=0.05, lam=0.01, lam_disp=1.0, edge_p=0.6667,
         q0=5, policy="firsthand", T=300, seed=0, interval=10, probe=20,
         warm_start=False, gate=True, candidate_k=1000,
-        sim_const=None, select_rule="repo", hearsay_crowds_self=True,
+        sim_const=None, select_rule="repo", hearsay_crowds_self=True, tie_newest=True,
         books=False, write_p=0.05, write_W=5, book_frac=1.0,
         refusal=True, refusal_mode="nother", debug=False,
         questions=None, probe_questions=None):
@@ -157,6 +157,10 @@ def run(M=50, N=10, E=3, K=8, k=3, c=0.05, lam=0.01, lam_disp=1.0, edge_p=0.6667
       select_rule: "repo" | "uniform" (questions chosen uniformly)
       questions / probe_questions: pool indices of a real run's question set and
         probe set (matched comparison); default = drawn from the seed
+      tie_newest: break retrieval ties (equal decayed score: copies of a question
+        stored in the same step) newest first, as the real FAISS search does. A
+        peer's copy received in step t then outranks the agent's own observation
+        from step t. False = oldest first (the behaviour before 2026-10-30).
       hearsay_crowds_self: if False, secondhand copies of q do not compete with
         the firsthand copy of q (they get similarity sim_floor-like 0 for q)
 
@@ -287,7 +291,10 @@ def run(M=50, N=10, E=3, K=8, k=3, c=0.05, lam=0.01, lam_disp=1.0, edge_p=0.6667
             cand = np.arange(n)
         score = raw[cand] * np.exp(-c * (t - mt[i, cand]))
         kk = min(k, len(cand))
-        top = cand[np.argsort(-score, kind="stable")[:kk]]
+        if tie_newest:   # as the real search: FAISS returns equal scores newest first, re-sort is stable
+            top = cand[np.lexsort((-cand, -score))[:kk]]
+        else:
+            top = cand[np.argsort(-score, kind="stable")[:kk]]
         for pos, e in enumerate(top, start=1):
             if mq[i, e] == q and (policy != "firsthand" or mf[i, e]):
                 if nother:

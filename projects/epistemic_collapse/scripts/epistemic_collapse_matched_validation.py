@@ -11,7 +11,9 @@ Real runs: Fig 2 (f2real-*, 650 runs, 10 per cell) and Fig 1 steady state
 (f1real-ss-*, 20 per size); T = 100, steady state = probes at t >= 50.
 REPS mirror replays per real run. Caches:
   data/figure2_proxy_matched.json, data/figure1_proxy_matched_ss.json
-    {run name: [[collapse, misalign] per replay]}
+    {run name: {"real": [metrics], "proxy": [[metrics] per replay]}}
+  metrics = (collapse, misalign, agent IDK, agent correct), steady state.
+  Appendix A plots these four-metric comparisons.
 Report: per cell the paired difference real - mirror (z from the spread of the
 paired differences over runs), chi^2 over cells, and real/mirror capacity ratios
 M*(phi) per Fig 2 setting.
@@ -67,8 +69,8 @@ def _job(a):
                        seed=10000 * seed + rep, T=100, select_rule='uniform',
                        questions=idx, probe_questions=probe)
         k = np.asarray(r['t']) >= T0
-        out.append([float(np.mean(r['collapse'][k])), float(np.mean(r['misalign'][k]))])
-    return name, out
+        out.append([float(np.mean(r[m][k])) for m in ('collapse', 'misalign', 'agent_idk', 'correct')])
+    return name, {'real': real_metrics(d), 'proxy': out}
 
 
 def compute(force=False):
@@ -82,10 +84,26 @@ def compute(force=False):
         print('wrote', cache, len(res))
 
 
-def _real(name):
-    t, col, mis = R.failure_series(R.run_dir(name))
-    k = t >= T0
-    return np.array([col[k].mean(), mis[k].mean()])
+def real_metrics(d):
+    """(collapse, misalign, agent IDK, agent correct) of a real run, probes at t >= T0."""
+    acc = []
+    for f in glob.glob(d + '/snapshots/snapshot_step_*_meta.json'):
+        s = json.load(open(f))
+        if s['step'] < T0:
+            continue
+        for j, q in enumerate(s['questions']):
+            a = [row[j] for row in s['responses']]
+            idk = np.array([x == R.IDK for x in a]); cor = np.array([x == s['truths'][q] for x in a])
+            acc.append([idk.all(), not cor.any() and not idk.all(), idk.mean(), cor.mean()])
+    return np.mean(acc, axis=0).tolist()
+
+
+def _real(px, name):
+    return np.array(px[name]['real'][:2])
+
+
+def _proxy(px, name):
+    return np.mean(px[name]['proxy'], axis=0)[:2]
 
 
 def _crossing(Ms, y, phi):
@@ -104,11 +122,11 @@ def report():
             cells[name.rsplit('-s', 1)[0]].append(name)
         chi, rows = 0.0, []
         for cell, names in cells.items():
-            d = np.array([_real(n) - np.mean(px[n], axis=0) for n in names])   # paired, per run
+            d = np.array([_real(px, n) - _proxy(px, n) for n in names])   # paired, per run
             tot = d.sum(axis=1)
             z = tot.mean() / max(tot.std(ddof=1) / np.sqrt(len(tot)), 1e-4)
             chi += z * z
-            real = np.mean([_real(n).sum() for n in names])
+            real = np.mean([_real(px, n).sum() for n in names])
             rows.append((cell, real, real - tot.mean(), z))
         print(f'\n{os.path.basename(cache)}: chi2 = {chi:.1f} / {len(cells)} cells, '
               f'mean z = {np.mean([r[3] for r in rows]):+.2f}')
