@@ -9,6 +9,9 @@ The real agent's IDK on a question whose own firsthand fact is retrieved depends
   - n_other: how many retrieved entries are about OTHER questions (0, 1, 2+). With
     few distinct questions (small M) contexts fill with copies of the same question
     and refusal rises towards its k = 1 level.
+  - k: the table is measured separately per retrieval depth (k = 1 and 3). At k = 1
+    n_other is always 0; at k = 3 a "k1" question with only copies of itself in
+    context is refused far less often (~0.7) than with its fact alone (~0.99).
 For "none" questions the residual IDK is tiny and depends on the fact's position.
 
 Within a run, refusal of a question is correlated across agents and time: a probit
@@ -16,8 +19,9 @@ random effect per (run, question), P(refuse | z) = Phi(a + sigma z), z ~ N(0, 1)
 a = Phi^-1(p) sqrt(1 + sigma^2) so that the marginal is p. sigma by maximum likelihood.
 
 Writes data/refusal_context.json:
-  {"p": {class: [p(n_other=0), p(1), p(2+)]}, "n": {...}, "gate_none": {k: [p(pos 1), ...]},
+  {"p": {k: {class: [p(n_other=0), p(1), p(2+)]}}, "n": {...}, "gate_none": {k: [p(pos 1), ...]},
    "sigma": s}
+At k = 1 the n_other = 1, 2+ entries (impossible there) repeat the n_other = 0 value.
 """
 import glob
 import json
@@ -75,25 +79,29 @@ def main():
     gate = defaultdict(lambda: [0, 0])
     ev = list(events(cls))
     for f, q, c, n_other, pos, k, y in ev:
-        if c == 'none':
-            a = gate[(k, pos)]
-        else:
-            a = acc[(c, n_other)]
+        a = gate[(k, pos)] if c == 'none' else acc[(k, c, n_other)]
         a[0] += y; a[1] += 1
-    p = {c: [acc[(c, j)][0] / max(acc[(c, j)][1], 1) for j in range(3)] for c in ('k3', 'k1')}
-    n = {c: [acc[(c, j)][1] for j in range(3)] for c in ('k3', 'k1')}
+    ks = sorted({k for _, _, c, _, _, k, _ in ev if c != 'none'})
+    n = {k: {c: [acc[(k, c, j)][1] for j in range(3)] for c in ('k3', 'k1')} for k in ks}
+    p = {}
+    for k in ks:
+        p[k] = {}
+        for c in ('k3', 'k1'):
+            r = [acc[(k, c, j)][0] / acc[(k, c, j)][1] if acc[(k, c, j)][1] else None for j in range(3)]
+            p[k][c] = [x if x is not None else r[0] for x in r]   # k = 1: only n_other = 0 occurs
     groups = defaultdict(lambda: ([], []))
     for f, q, c, n_other, pos, k, y in ev:
         if c != 'none':
             g = groups[(f, q)]
-            g[0].append(p[c][n_other]); g[1].append(y)
+            g[0].append(p[k][c][n_other]); g[1].append(y)
     sigma = fit_sigma([(np.array(a), np.array(b)) for a, b in groups.values()])
-    out = {'p': p, 'n': n,
+    out = {'p': {str(k): v for k, v in p.items()}, 'n': {str(k): v for k, v in n.items()},
            'gate_none': {str(k): [gate[(k, j)][0] / gate[(k, j)][1] for j in range(1, k + 1) if gate[(k, j)][1]]
                          for k in sorted({k for k, _ in gate})},
            'sigma': sigma}
-    for c in p:
-        print(c, 'p(n_other = 0, 1, 2+) =', np.round(p[c], 3), 'n =', n[c])
+    for k in ks:
+        for c in p[k]:
+            print(f'k={k}', c, 'p(n_other = 0, 1, 2+) =', np.round(p[k][c], 3), 'n =', n[k][c])
     print('gate (none):', {k: np.round(v, 4).tolist() for k, v in out['gate_none'].items()}, ' sigma = %.2f' % sigma)
     json.dump(out, open(os.path.join(DATA, 'refusal_context.json'), 'w'), indent=1)
 

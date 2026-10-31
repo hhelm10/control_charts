@@ -404,7 +404,7 @@ def misalignment(M, lam_mean, lam_disp=1.0, N=10, B=11, alpha=3 / 11, c=0.05, k=
         return np.array([pc.mean(), p_hold - pc.mean(), 1 - p_hold, col, np.mean(nc) - col])
 
     from epistemic_collapse_mirror import refusal_context
-    RC = refusal_context()
+    RC = refusal_context(k)
     gn = RC["gate"].get(k, RC["gate"][3])
     g = 1.0 - gn[0] if gate else 1.0              # residual IDK of other questions (position 1)
     if refusal:

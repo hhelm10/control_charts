@@ -37,7 +37,7 @@ POOL = {"oai": "nq_embedded_oai.parquet", "nomic": "nq_embedded.parquet"}[os.env
 _EMB = None
 _GATE = None
 _REF = {}
-_RC = None
+_RC = {}
 NOTHER_STATS = None        # set to [0, 0, 0] to count answering events by n_other (diagnostics)
 # per-answer refusal of a refusable question by a holding agent, measured in vivo on
 # the real Fig 1(a) runs (data/llm_gate_dumps; n = 550 answering events, flat in t)
@@ -78,24 +78,25 @@ def refusal_table(k=3):
     return _REF[k]
 
 
-def refusal_context():
+def refusal_context(k=3):
     """Context-dependent refusal (scripts/epistemic_collapse_refusal_context.py,
     data/refusal_context.json): per pool question its class (0 none, 1 refused only
     with its own fact alone, 2 refused with 2 nearest neighbours), the in-vivo
-    P(refuse | class, n_other = 0, 1, 2+ retrieved entries about other questions),
-    the residual IDK of "none" questions by k and position, and sigma (probit
-    random effect per run and question)."""
-    global _RC
-    if _RC is None:
+    P(refuse | class, n_other = 0, 1, 2+ retrieved entries about other questions)
+    measured at retrieval depth k (k without its own measurement uses k = 3), the
+    residual IDK of "none" questions by k and position, and sigma (probit random
+    effect per run and question)."""
+    if k not in _RC:
         rc = json.load(open(os.path.join(DATA, "refusal_context.json")))
         a3 = np.array([v[0] for v in json.load(open(os.path.join(DATA, "refusal_oai.json")))["idk"]])
         a1 = np.array(json.load(open(os.path.join(DATA, "refusal_oai_k1.json")))["idk"])
         cls = np.where(a3 == 1, 2, np.where(a1 == 1, 1, 0))
+        pk = rc["p"].get(str(k), rc["p"]["3"])
         P = np.zeros((3, 3))
-        P[1], P[2] = rc["p"]["k1"], rc["p"]["k3"]
-        _RC = {"cls": cls, "P": P, "sigma": rc["sigma"],
-               "gate": {int(k): v for k, v in rc["gate_none"].items()}}
-    return _RC
+        P[1], P[2] = pk["k1"], pk["k3"]
+        _RC[k] = {"cls": cls, "P": P, "sigma": rc["sigma"],
+                  "gate": {int(kk): v for kk, v in rc["gate_none"].items()}}
+    return _RC[k]
 
 
 def _embeddings():
@@ -205,7 +206,7 @@ def run(M=50, N=10, E=3, K=8, k=3, c=0.05, lam=0.01, lam_disp=1.0, edge_p=0.6667
     rng_ref = np.random.default_rng([seed, 1])
     if nother:
         from scipy.stats import norm
-        RC = refusal_context()
+        RC = refusal_context(k)
         cls_q = RC["cls"][idx] if refusal else np.zeros(M, dtype=np.int64)
         sg = RC["sigma"]
         z_q = rng_ref.standard_normal(M)                       # random effect per (run, question)

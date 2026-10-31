@@ -38,7 +38,8 @@ recompute); otherwise it only renders.
   `epistemic_collapse_gate_invivo.py [k]` and
   `epistemic_collapse_refusal_context.py` fit the in-vivo model from LLM logs of
   real runs (`LLM_DUMP`; `data/llm_gate_dumps/`, not committed) →
-  `data/gate_invivo*.json`, `data/refusal_context.json`.
+  `data/gate_invivo*.json`, `data/refusal_context.json` (refusal table per
+  retrieval depth k = 1, 3; other k use k = 3).
 - `epistemic_collapse_gate.py` — the earlier synthetic-context gate
   (→ `data/ecal_table.json`, `data/m_profile.json`; still used for k ∉ {1, 3}
   by the legacy refusal modes).
